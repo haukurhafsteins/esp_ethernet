@@ -19,8 +19,6 @@
 
 static const char *TAG = "ETHERNET";
 static esp_netif_t *eth_netif;
-static const char *SYSTEM_CFG = "system.cfg";
-
 static char hostname[MAX_HOSTNAME];
 static bool dhcp = true;
 static char ip[MAX_IP] = "";
@@ -128,7 +126,7 @@ bool ethernet_valid_ip(const char *ip)
     return inet_aton(ip, &in) != 0;
 }
 
-void ethernet_init(char *json)
+void ethernet_start(const char *json)
 {
     bool save;
     ethernet_set_config(json, &save);
@@ -175,6 +173,11 @@ void ethernet_init(char *json)
     ESP_LOGI(TAG, "Hostname: %s", hostname);
     ESP_ERROR_CHECK(esp_netif_set_hostname(eth_netif, hostname));
     ESP_ERROR_CHECK(esp_eth_start(eth_handle));
+}
+
+void ethernet_stop()
+{
+
 }
 
 /*
