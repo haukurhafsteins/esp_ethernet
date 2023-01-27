@@ -6,8 +6,7 @@ extern "C"
 {
 #endif
 
-bool ethernet_set_config(char *json, bool *save);
-esp_err_t ethernet_init(char*json);
+esp_err_t ethernet_start(char*json);
 esp_err_t ethernet_connect(void);
 esp_err_t ethernet_disconnect(void);
 esp_netif_t* ethernet_get_netif();
