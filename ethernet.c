@@ -100,14 +100,11 @@ static const char* ethernet_get_default_hostname()
     return default_hostname;
 }
 
-bool ethernet_set_config(const char *json, bool *save)
+static bool ethernet_configure(const char *json)
 {
     cJSON *doc = cJSON_Parse(json);
     if (doc == NULL)
         return false;
-
-    save_config = cJSON_GetBool(doc, "saveConfig", save_config);
-    *save = save_config;
 
     cJSON *eth = cJSON_GetObjectItemCaseSensitive(doc, "ethernetSettings");
     cJSON_GetString(eth, "hostname", "", hostname, MAX_HOSTNAME);
@@ -128,8 +125,7 @@ bool ethernet_valid_ip(const char *ip)
 
 void ethernet_start(const char *json)
 {
-    bool save;
-    ethernet_set_config(json, &save);
+    ethernet_configure(json);
 
     ESP_ERROR_CHECK(esp_netif_init()); 
     esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
