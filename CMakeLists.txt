@@ -1,4 +1,4 @@
 idf_component_register(SRCS "ethernet.c"
                     INCLUDE_DIRS "include"
-                    REQUIRES esp_netif esp_wifi
+                    REQUIRES esp_netif esp_wifi esp_eth
                     PRIV_REQUIRES "cJSON")
