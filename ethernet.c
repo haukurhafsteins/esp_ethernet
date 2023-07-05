@@ -8,13 +8,14 @@
 #include "esp_netif.h"
 #include "esp_wifi.h"
 #include "esp_eth.h"
+#include "esp_mac.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "driver/gpio.h"
 #include "sdkconfig.h"
 // #include "nvsstorage.h"
-#include "cjson.h"
-#include "cjson_utils.h"
+#include "cJSON.h"
+#include "cJSON_Params.h"
 
 #define MAX_HOSTNAME 128
 #define MAX_IP 20
@@ -24,59 +25,43 @@
 
 static const char *TAG = "ETHERNET";
 static esp_netif_t *eth_netif;
-static char hostname[MAX_HOSTNAME] = "parkinsonglove";
+static char hostname[MAX_HOSTNAME] = "AsgardGrip";
 static bool dhcp = true;
 static bool cfg_wifi = true;
-static int cfg_max_connect_retry = 10;
-static int cfg_auth_mode = WIFI_AUTH_WPA2_PSK; //WIFI_AUTH_WEP;
 static char ip[MAX_IP] = "";
 static char netmask[MAX_IP] = "";
 static char gateway[MAX_IP] = "";
+/*
 static int32_t cfg_phy_addr = 1;
+static int cfg_max_connect_retry = 10;
+static int cfg_auth_mode = WIFI_AUTH_WPA2_PSK; // WIFI_AUTH_WEP;
 static int cfg_reset_gpio_num = 5;
 static int cfg_smi_mdc_gpio_num = 23;
 static int cfg_smi_mdio_gpio_num = 18;
 static int connect_retry_counter = 0;
-static EventGroupHandle_t s_wifi_event_group;
+*/
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data)
 {
-    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
-    {
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
-    }
-    else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED)
-    {
-        if (connect_retry_counter < cfg_max_connect_retry)
-        {
-            esp_wifi_connect();
-            connect_retry_counter++;
-            ESP_LOGI(TAG, "retry to connect to the AP");
-        }
-        else
-        {
-            xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
-        }
-        ESP_LOGI(TAG, "connect to the AP fail");
-    }
-    else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
-    {
-        ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
+    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        esp_wifi_connect();
+    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+        ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-        connect_retry_counter = 0;
-        xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
     }
 }
 
 /** Event handler for Ethernet events */
-static void eth_event_handler(void *arg, esp_event_base_t event_base,
+/*static void eth_event_handler(void *arg, esp_event_base_t event_base,
                               int32_t event_id, void *event_data)
 {
     if (event_base == ETH_EVENT)
     {
         uint8_t mac_addr[6] = {0};
-        /* we can get the ethernet driver handle from event data */
+        // we can get the ethernet driver handle from event data 
         esp_eth_handle_t eth_handle = *(esp_eth_handle_t *)event_data;
 
         switch (event_id)
@@ -106,10 +91,10 @@ static void eth_event_handler(void *arg, esp_event_base_t event_base,
     else if (event_base == IP_EVENT)
     {
     }
-}
+}*/
 
 /** Event handler for IP_EVENT_ETH_GOT_IP */
-static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
+/*static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
                                  int32_t event_id, void *event_data)
 {
     ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
@@ -121,7 +106,7 @@ static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
     ESP_LOGI(TAG, "ETH MASK:" IPSTR, IP2STR(&ip_info->netmask));
     ESP_LOGI(TAG, "ETH GW  :" IPSTR, IP2STR(&ip_info->gw));
     ESP_LOGI(TAG, "~~~~~~~~~~~");
-}
+}*/
 
 esp_netif_t *ethernet_get_netif()
 {
@@ -185,23 +170,29 @@ void ethernet_start(const char *json)
         esp_event_handler_instance_t instance_any_id;
         ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, &instance_any_id));
         ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL, &instance_got_ip));
+        eth_netif = esp_netif_create_default_wifi_sta();
+        assert(eth_netif);
         wifi_config_t wifi_config = {
             .sta = {
                 .ssid = "MP9",
                 .password = "Mp9HTIDev",
+                .scan_method = WIFI_ALL_CHANNEL_SCAN,
+                .threshold.rssi = -127,
+                .threshold.authmode = WIFI_AUTH_OPEN,
                 /* Setting a password implies station will connect to all security modes including WEP/WPA.
                  * However these modes are deprecated and not advisable to be used. Incase your Access point
                  * doesn't support WPA2, these mode can be enabled by commenting below line */
-                .threshold.authmode = cfg_auth_mode,
+                //.threshold.authmode = cfg_auth_mode,
             },
         };
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
         ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-        tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, hostname);
+        esp_netif_set_hostname(eth_netif, hostname);
         ESP_ERROR_CHECK(esp_wifi_start());
     }
     else
     {
+        /*
         esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
         esp_netif_ip_info_t ip_info;
         eth_netif = esp_netif_new(&cfg);
@@ -236,10 +227,10 @@ void ethernet_start(const char *json)
         esp_eth_config_t config = ETH_DEFAULT_CONFIG(mac, phy);
         esp_eth_handle_t eth_handle = NULL;
         ESP_ERROR_CHECK(esp_eth_driver_install(&config, &eth_handle));
-        /* attach Ethernet driver to TCP/IP stack */
         ESP_ERROR_CHECK(esp_netif_attach(eth_netif, esp_eth_new_netif_glue(eth_handle)));
         ESP_ERROR_CHECK(esp_netif_set_hostname(eth_netif, hostname));
         ESP_ERROR_CHECK(esp_eth_start(eth_handle));
+        */
     }
     ESP_LOGI(TAG, "Hostname: %s", hostname);
 }
