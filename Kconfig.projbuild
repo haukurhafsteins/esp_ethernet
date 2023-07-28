@@ -1,95 +1,90 @@
-menu "MFM-MASI Ethernet Configuration"
+menu "esp_ethernet Configuration"
 
-    config MFM_MASI_GPIO_RANGE_MIN
+    config E_NET_GPIO_RANGE_MIN
         int
         default 0
 
-    config MFM_MASI_GPIO_RANGE_MAX
+    config E_NET_GPIO_RANGE_MAX
         int
         default 33 if IDF_TARGET_ESP32
 
-    config MFM_MASI_USE_INTERNAL_ETHERNET
-        depends on IDF_TARGET_ESP32
-        select ETH_USE_ESP32_EMAC
-        bool "Internal EMAC"
+    config E_NET_DEFAULT_HOSTNAME
+        string "Default Hostname"
+        default "ap"
         help
-            Use internal Ethernet MAC controller.
+            The default hostname to use if not set by ethnernet_init function.
+            The name will get a postfix with a unique number.
 
-    if MFM_MASI_USE_INTERNAL_ETHERNET
-        choice MFM_MASI_ETH_PHY_MODEL
-            prompt "Ethernet PHY Device"
-            default MFM_MASI_ETH_PHY_LAN87XX
-            help
-                Select the Ethernet PHY device to use.
+    # if E_NET_USE_INTERNAL_ETHERNET
+    #     choice E_NET_ETH_PHY_MODEL
+    #         prompt "Ethernet PHY Device"
+    #         default E_NET_ETH_PHY_LAN87XX
+    #         help
+    #             Select the Ethernet PHY device to use.
 
-            config MFM_MASI_ETH_PHY_LAN87XX
-                bool "LAN87xx"
-                help
-                    Below chips are supported:
-                    LAN8710A is a small footprint MII/RMII 10/100 Ethernet Transceiver with HP Auto-MDIX and
-                        flexPWR® Technology.
-                    LAN8720A is a small footprint RMII 10/100 Ethernet Transceiver with HP Auto-MDIX Support.
-                    LAN8740A/LAN8741A is a small footprint MII/RMII 10/100 Energy Efficient Ethernet Transceiver
-                        with HP Auto-MDIX and flexPWR® Technology.
-                    LAN8742A is a small footprint RMII 10/100 Ethernet Transceiver with HP Auto-MDIX and
-                        flexPWR® Technology.
-                    Goto https://www.microchip.com for more information about them.
-        endchoice # MFM_MASI_ETH_PHY_MODEL
+    #         config E_NET_ETH_PHY_LAN87XX
+    #             bool "LAN87xx"
+    #             help
+    #                 Below chips are supported:
+    #                 LAN8710A is a small footprint MII/RMII 10/100 Ethernet Transceiver with HP Auto-MDIX and
+    #                     flexPWR® Technology.
+    #                 LAN8720A is a small footprint RMII 10/100 Ethernet Transceiver with HP Auto-MDIX Support.
+    #                 LAN8740A/LAN8741A is a small footprint MII/RMII 10/100 Energy Efficient Ethernet Transceiver
+    #                     with HP Auto-MDIX and flexPWR® Technology.
+    #                 LAN8742A is a small footprint RMII 10/100 Ethernet Transceiver with HP Auto-MDIX and
+    #                     flexPWR® Technology.
+    #                 Goto https://www.microchip.com for more information about them.
+    #     endchoice # E_NET_ETH_PHY_MODEL
 
-        config MFM_MASI_ETH_MDC_GPIO
-            int "SMI MDC GPIO number"
-            range MFM_MASI_GPIO_RANGE_MIN MFM_MASI_GPIO_RANGE_MAX
-            default 23
-            help
-                Set the GPIO number used by SMI MDC.
+    #     config E_NET_ETH_MDC_GPIO
+    #         int "SMI MDC GPIO number"
+    #         range E_NET_GPIO_RANGE_MIN E_NET_GPIO_RANGE_MAX
+    #         default 23
+    #         help
+    #             Set the GPIO number used by SMI MDC.
 
-        config MFM_MASI_ETH_MDIO_GPIO
-            int "SMI MDIO GPIO number"
-            range MFM_MASI_GPIO_RANGE_MIN MFM_MASI_GPIO_RANGE_MAX
-            default 18
-            help
-                Set the GPIO number used by SMI MDIO.
+    #     config E_NET_ETH_MDIO_GPIO
+    #         int "SMI MDIO GPIO number"
+    #         range E_NET_GPIO_RANGE_MIN E_NET_GPIO_RANGE_MAX
+    #         default 18
+    #         help
+    #             Set the GPIO number used by SMI MDIO.
 
-        config MFM_MASI_ETH_PHY_RST_GPIO
-            int "PHY Reset GPIO number"
-            range -1 MFM_MASI_GPIO_RANGE_MAX
-            default -1
-            help
-                Set the GPIO number used to reset PHY chip.
-                Set to -1 to disable PHY chip hardware reset.
+    #     config E_NET_ETH_PHY_RST_GPIO
+    #         int "PHY Reset GPIO number"
+    #         range -1 E_NET_GPIO_RANGE_MAX
+    #         default -1
+    #         help
+    #             Set the GPIO number used to reset PHY chip.
+    #             Set to -1 to disable PHY chip hardware reset.
 
-        config MFM_MASI_ETH_PHY_ADDR
-            int "PHY Address"
-            range 0 31
-            default 1
-            help
-                Set PHY address according your board schematic.
-    endif # MFM_MASI_USE_INTERNAL_ETHERNET
+    #     config E_NET_ETH_PHY_ADDR
+    #         int "PHY Address"
+    #         range 0 31
+    #         default 1
+    #         help
+    #             Set PHY address according your board schematic.
+    # endif # E_NET_USE_INTERNAL_ETHERNET
 
 
-    config MFM_MASI_USE_STATIC_IP
-        bool "Use Static IP"
-        help
-            Use static IP address.
-    
-    if MFM_MASI_USE_STATIC_IP
-        config MFM_MASI_STATIC_IP
-            string "IP"
-            default "10.100.50.252"
-            help
-                The static IP address to use.
+    # if E_NET_USE_STATIC_IP
+    #     config E_NET_STATIC_IP
+    #         string "IP"
+    #         default "10.100.50.252"
+    #         help
+    #             The static IP address to use.
 
-        config MFM_MASI_STATIC_GATEWAY
-            string "Gateway"
-            default "10.100.50.254"
-            help
-                The gateway to use.
+    #     config E_NET_STATIC_GATEWAY
+    #         string "Gateway"
+    #         default "10.100.50.254"
+    #         help
+    #             The gateway to use.
             
-        config MFM_MASI_STATIC_NETMASK
-            string "Net Mask"
-            default "255.255.255.0"
-            help
-                The net mask to use.
-    endif
+    #     config E_NET_STATIC_NETMASK
+    #         string "Net Mask"
+    #         default "255.255.255.0"
+    #         help
+    #             The net mask to use.
+    # endif
    
 endmenu
