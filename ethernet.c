@@ -17,7 +17,7 @@
 #include "cJSON.h"
 #include "cJSON_Params.h"
 
-#define MAX_HOSTNAME 128
+#define MAX_HOSTNAME 32
 #define MAX_IP 20
 #define MAX_SSID 32
 #define MAX_PW 64
@@ -25,27 +25,47 @@
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT BIT1
 
-#define AP_WIFI_SSID "asgardgrip"
-#define AP_WIFI_PASS "asgardgrip"
-
 typedef enum
 {
     netowork_type_ap,
     netowork_type_sta,
-    netowork_type_phy
+    netowork_type_phy,
+    network_type_end
 } network_type_t;
+
+typedef struct
+{
+    char hostname[MAX_HOSTNAME];
+    network_type_t type;
+    struct
+    {
+        char ip[MAX_IP];
+        char netmask[MAX_IP];
+        char gateway[MAX_IP];
+        char ssid[MAX_SSID];
+        char password[MAX_PW];
+        bool dhcp;
+    } wifi;
+    struct
+    {
+        int channel;
+        char password[MAX_PW];
+    } ap;
+} ethernet_settings_t;
 
 static const char *TAG = "ETHERNET";
 static esp_netif_t *eth_netif;
-static char cfg_hostname[32] = "AsgardGrip";
-static bool cfg_dhcp = true;
-static network_type_t cfg_network_type = netowork_type_ap;
-static char cfg_ip[MAX_IP] = "";
-static char cfg_netmask[MAX_IP] = "";
-static char cfg_gateway[MAX_IP] = "";
-static char cfg_ssid[MAX_SSID] = "";
-static char cfg_password[MAX_PW] = "";
-static int cfg_ap_channel = 2;
+static ethernet_settings_t ethernet_settings = {
+    .hostname = "AsgardGrip",
+    .type = netowork_type_ap,
+    .wifi = {
+        .ip = "",
+        .netmask = "",
+        .gateway = "",
+        .ssid = "",
+        .password = "",
+        .dhcp = true},
+    .ap = {.channel = 2, .password = ""}};
 static esp_event_handler_instance_t instance_got_ip;
 static esp_event_handler_instance_t instance_any_id;
 static int connect_retry_counter = 0;
@@ -85,6 +105,9 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
             ESP_LOGI(TAG, "WIFI_EVENT_STA_DISCONNECTED");
             break;
 
+        case WIFI_EVENT_AP_STOP:
+            ESP_LOGI(TAG, "WIFI_EVENT_AP_STOP");
+            break;
         case WIFI_EVENT_AP_START:
             ESP_LOGI(TAG, "WIFI_EVENT_AP_START");
             break;
@@ -219,7 +242,6 @@ bool ethernet_valid_ip(const char *ip)
 
 void wifi_init_softap(void)
 {
-    ESP_LOGI(TAG, "wifi_init_softap");
     eth_netif = esp_netif_create_default_wifi_ap();
     assert(eth_netif);
 
@@ -246,35 +268,32 @@ void wifi_init_softap(void)
 
     wifi_config_t wifi_config = {
         .ap = {
-            .channel = cfg_ap_channel,
-            .max_connection = 4,
-#ifdef CONFIG_ESP_WIFI_SOFTAP_SAE_SUPPORT
-            // .authmode = WIFI_AUTH_WPA2_WPA3_PSK,
+            .channel = ethernet_settings.ap.channel,
+            .max_connection = 2,
+            //.authmode = WIFI_AUTH_WPA2_WPA3_PSK,
             .authmode = WIFI_AUTH_OPEN,
+            //.authmode = WIFI_AUTH_WPA2_PSK,
             .sae_pwe_h2e = WPA3_SAE_PWE_BOTH,
-#else /* CONFIG_ESP_WIFI_SOFTAP_SAE_SUPPORT */
-            .authmode = WIFI_AUTH_WPA2_PSK,
-#endif
-            .pmf_cfg = {
-                .required = true,
-            },
-        },
-    };
-    wifi_config.ap.ssid_len = strlen(cfg_hostname);
-    snprintf((char *)wifi_config.ap.ssid, MAX_SSID, "%s", cfg_hostname);
-    snprintf((char *)wifi_config.ap.password, MAX_PW, "%s", cfg_password);
+            .pmf_cfg = {.required = true}}};
 
-    if (strlen(AP_WIFI_PASS) == 0)
-    {
-        wifi_config.ap.authmode = WIFI_AUTH_OPEN;
-    }
+    wifi_config.ap.ssid_len = strlen(ethernet_settings.hostname);
+    snprintf((char *)wifi_config.ap.ssid, MAX_SSID, "%s", ethernet_settings.hostname);
+    // if (strlen(cfg_password) == 0)
+    //{
+    // wifi_config.ap.sae_pwe_h2e = WPA3_SAE_PWE_UNSPECIFIED;
+    ESP_LOGW(TAG, "No password: OPEN NETWORK!");
+    //}
+    // else
+    //{
+    //    snprintf((char *)wifi_config.ap.password, MAX_PW, "%s", cfg_password);
+    //}
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    ESP_LOGI(TAG, "wifi_init_softap finished. SSID:%s password:%s channel:%d",
-             AP_WIFI_SSID, AP_WIFI_PASS, cfg_ap_channel);
+    ESP_LOGI(TAG, "AP init finished. SSID:%s password:%s channel:%d",
+             ethernet_settings.hostname, ethernet_settings.ap.password, ethernet_settings.ap.channel);
 }
 
 static void wifi_deinit_softap()
@@ -288,8 +307,6 @@ static void wifi_deinit_softap()
 
 static void wifi_init_sta()
 {
-    ESP_LOGI(TAG, "wifi_init_sta");
-
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, &instance_any_id));
@@ -307,12 +324,12 @@ static void wifi_init_sta()
             //.threshold.authmode = cfg_auth_mode,
         },
     };
-    snprintf((char *)wifi_config.sta.ssid, MAX_SSID, "%s", cfg_ssid);
-    snprintf((char *)wifi_config.sta.password, MAX_PW, "%s", cfg_password);
+    snprintf((char *)wifi_config.sta.ssid, MAX_SSID, "%s", ethernet_settings.wifi.ssid);
+    snprintf((char *)wifi_config.sta.password, MAX_PW, "%s", ethernet_settings.wifi.password);
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-    esp_netif_set_hostname(eth_netif, cfg_hostname);
+    esp_netif_set_hostname(eth_netif, ethernet_settings.hostname);
     ESP_ERROR_CHECK(esp_wifi_start());
 }
 
@@ -327,6 +344,7 @@ static void wifi_deinit_sta()
 
 static void phy_init()
 {
+    ESP_LOGI(TAG, "phy_init - NOT IMPLEMENTED YET");
 }
 
 bool ethernet_init(const char *json, bool *save)
@@ -339,21 +357,32 @@ bool ethernet_init(const char *json, bool *save)
         *save = true;
 
     cJSON *settings = cJSON_GetObjectItemCaseSensitive(doc, "ethernetSettings");
-    cfg_network_type = cJSON_GetInt(settings, "type", (int)cfg_network_type, (int)netowork_type_ap, (int)netowork_type_phy);
-    cfg_ap_channel = cJSON_GetInt(settings, "type", (int)cfg_ap_channel, 1, 11);
-    cJSON_GetString(settings, "hostname", "", cfg_hostname, MAX_HOSTNAME);
-    cJSON_GetString(settings, "ip", cfg_ip, cfg_ip, MAX_IP);
-    cJSON_GetString(settings, "netmask", cfg_netmask, cfg_netmask, MAX_IP);
-    cJSON_GetString(settings, "gateway", cfg_gateway, cfg_gateway, MAX_IP);
-    cJSON_GetString(settings, "ssid", cfg_ssid, cfg_ssid, MAX_SSID);
-    cJSON_GetString(settings, "password", cfg_password, cfg_password, MAX_PW);
-    cfg_dhcp = cJSON_GetBool(settings, "dhcp", cfg_dhcp);
+    cJSON_GetString(settings, "hostname", "", ethernet_settings.hostname, MAX_HOSTNAME);
+    ethernet_settings.type = cJSON_GetInt(settings, "type", ethernet_settings.type, netowork_type_ap, network_type_end - 1);
+
+    cJSON *wifi = cJSON_GetObjectItemCaseSensitive(settings, "wifi");
+    cJSON_GetString(wifi, "ip", ethernet_settings.wifi.ip, ethernet_settings.wifi.ip, MAX_IP);
+    cJSON_GetString(wifi, "netmask", ethernet_settings.wifi.netmask, ethernet_settings.wifi.netmask, MAX_IP);
+    cJSON_GetString(wifi, "gateway", ethernet_settings.wifi.gateway, ethernet_settings.wifi.gateway, MAX_IP);
+    cJSON_GetString(wifi, "ssid", ethernet_settings.wifi.ssid, ethernet_settings.wifi.ssid, MAX_SSID);
+    cJSON_GetString(wifi, "password", ethernet_settings.wifi.password, ethernet_settings.wifi.password, MAX_PW);
+    ethernet_settings.wifi.dhcp = cJSON_GetBool(wifi, "dhcp", ethernet_settings.wifi.dhcp);
+
+    cJSON *ap = cJSON_GetObjectItemCaseSensitive(settings, "ap");
+    ethernet_settings.ap.channel = cJSON_GetInt(ap, "channel", (int)ethernet_settings.ap.channel, 1, 13);
+    cJSON_GetString(ap, "password", ethernet_settings.ap.password, ethernet_settings.ap.password, MAX_PW);
 
     cJSON_Delete(doc);
 
-    if (!ethernet_valid_hostname(cfg_hostname))
-        snprintf(cfg_hostname, MAX_HOSTNAME, "%s", ethernet_get_default_hostname());
-    ESP_LOGI(TAG, "Hostname: %s", cfg_hostname);
+    if (!ethernet_valid_hostname(ethernet_settings.hostname))
+        snprintf(ethernet_settings.hostname, MAX_HOSTNAME, "%s", ethernet_get_default_hostname());
+    ESP_LOGI(TAG, "Hostname: %s", ethernet_settings.hostname);
+
+    if (ethernet_settings.wifi.ssid[0] == '\0')
+    {
+        ESP_LOGW(TAG, "No SSID set. Starting AP mode.");
+        ethernet_settings.type = netowork_type_ap;
+    }
 
     return true;
 }
@@ -362,14 +391,23 @@ void ethernet_start()
 {
     ESP_ERROR_CHECK(esp_netif_init());
 
-    if (cfg_network_type == netowork_type_ap)
-        wifi_init_softap();
-    if (cfg_network_type == netowork_type_sta)
-        wifi_init_sta();
-    else
+    switch (ethernet_settings.type)
+    {
+    case netowork_type_phy:
+        ESP_LOGI(TAG, "Network type: PHY");
         phy_init();
+        break;
+    case netowork_type_ap:
+    default:
+        ESP_LOGI(TAG, "Network type: AP");
+        wifi_init_softap();
+        break;
+    case netowork_type_sta:
+        ESP_LOGI(TAG, "Network type: STA");
+        wifi_init_sta();
+        break;
+    }
 }
-
 void ethernet_stop()
 {
 }
