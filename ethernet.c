@@ -296,14 +296,14 @@ void wifi_init_softap(void)
              ethernet_settings.hostname, ethernet_settings.ap.password, ethernet_settings.ap.channel);
 }
 
-static void wifi_deinit_softap()
-{
-    ESP_ERROR_CHECK(esp_wifi_stop());
-    ESP_ERROR_CHECK(esp_netif_dhcps_stop(eth_netif));
-    esp_netif_destroy_default_wifi(eth_netif);
-    ESP_ERROR_CHECK(esp_wifi_deinit());
-    ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, NULL));
-}
+// static void wifi_deinit_softap()
+// {
+//     ESP_ERROR_CHECK(esp_wifi_stop());
+//     ESP_ERROR_CHECK(esp_netif_dhcps_stop(eth_netif));
+//     esp_netif_destroy_default_wifi(eth_netif);
+//     ESP_ERROR_CHECK(esp_wifi_deinit());
+//     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, NULL));
+// }
 
 static void wifi_init_sta()
 {
