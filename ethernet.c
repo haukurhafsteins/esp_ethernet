@@ -213,6 +213,14 @@ esp_netif_t *ethernet_get_netif()
 {
     return eth_netif;
 }
+const char *ethernet_get_ip()
+{
+    const esp_netif_ip_info_t ip_info;
+    if (ESP_OK == esp_netif_get_ip_info(eth_netif, &ip_info))
+        return ip4addr_ntoa(&ip_info.ip);
+    return "";
+}
+
 const char *ethernet_get_hostname()
 {
     const char *p;
@@ -248,11 +256,7 @@ void wifi_init_softap(void)
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
-                                                        ESP_EVENT_ANY_ID,
-                                                        &wifi_event_handler,
-                                                        NULL,
-                                                        NULL));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, NULL));
 
     // Set the IP address for the SoftAP interface
     esp_netif_ip_info_t ip_info = {};
