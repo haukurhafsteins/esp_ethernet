@@ -360,11 +360,10 @@ bool ethernet_init(const char *json, bool *save)
     if (save != NULL)
         *save = true;
 
-    cJSON *settings = cJSON_GetObjectItemCaseSensitive(doc, "ethernetSettings");
-    cJSON_GetString(settings, "hostname", "", ethernet_settings.hostname, MAX_HOSTNAME);
-    ethernet_settings.type = cJSON_GetInt(settings, "type", ethernet_settings.type, netowork_type_ap, network_type_end - 1);
+    cJSON_GetString(doc, "hostname", "", ethernet_settings.hostname, MAX_HOSTNAME);
+    ethernet_settings.type = 0; //cJSON_GetInt(doc, "type", ethernet_settings.type, netowork_type_ap, network_type_end - 1);
 
-    cJSON *wifi = cJSON_GetObjectItemCaseSensitive(settings, "wifi");
+    cJSON *wifi = cJSON_GetObjectItemCaseSensitive(doc, "wifi");
     cJSON_GetString(wifi, "ip", ethernet_settings.wifi.ip, ethernet_settings.wifi.ip, MAX_IP);
     cJSON_GetString(wifi, "netmask", ethernet_settings.wifi.netmask, ethernet_settings.wifi.netmask, MAX_IP);
     cJSON_GetString(wifi, "gateway", ethernet_settings.wifi.gateway, ethernet_settings.wifi.gateway, MAX_IP);
@@ -372,7 +371,7 @@ bool ethernet_init(const char *json, bool *save)
     cJSON_GetString(wifi, "password", ethernet_settings.wifi.password, ethernet_settings.wifi.password, MAX_PW);
     ethernet_settings.wifi.dhcp = cJSON_GetBool(wifi, "dhcp", ethernet_settings.wifi.dhcp);
 
-    cJSON *ap = cJSON_GetObjectItemCaseSensitive(settings, "ap");
+    cJSON *ap = cJSON_GetObjectItemCaseSensitive(doc, "ap");
     ethernet_settings.ap.channel = cJSON_GetInt(ap, "channel", (int)ethernet_settings.ap.channel, 1, 13);
     cJSON_GetString(ap, "password", ethernet_settings.ap.password, ethernet_settings.ap.password, MAX_PW);
 
