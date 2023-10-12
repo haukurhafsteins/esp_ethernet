@@ -27,7 +27,7 @@
 
 typedef enum
 {
-    netowork_type_ap,
+    netowork_type_ap = 0,
     netowork_type_sta,
     netowork_type_phy,
     network_type_end
@@ -361,7 +361,7 @@ bool ethernet_init(const char *json, bool *save)
         *save = true;
 
     cJSON_GetString(doc, "hostname", "", ethernet_settings.hostname, MAX_HOSTNAME);
-    ethernet_settings.type = 0; //cJSON_GetInt(doc, "type", ethernet_settings.type, netowork_type_ap, network_type_end - 1);
+    ethernet_settings.type = cJSON_GetInt(doc, "type", ethernet_settings.type, netowork_type_ap, network_type_end - 1);
 
     cJSON *wifi = cJSON_GetObjectItemCaseSensitive(doc, "wifi");
     cJSON_GetString(wifi, "ip", ethernet_settings.wifi.ip, ethernet_settings.wifi.ip, MAX_IP);
@@ -379,7 +379,7 @@ bool ethernet_init(const char *json, bool *save)
 
     if (!ethernet_valid_hostname(ethernet_settings.hostname))
         snprintf(ethernet_settings.hostname, MAX_HOSTNAME, "%s", ethernet_get_default_hostname());
-    ESP_LOGI(TAG, "Hostname: %s", ethernet_settings.hostname);
+    //ESP_LOGI(TAG, "Hostname: %s", ethernet_settings.hostname);
 
     if (ethernet_settings.wifi.ssid[0] == '\0')
     {
