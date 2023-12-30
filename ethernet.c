@@ -69,7 +69,7 @@ static ethernet_settings_t ethernet_settings = {
 static esp_event_handler_instance_t instance_got_ip;
 static esp_event_handler_instance_t instance_any_id;
 static int connect_retry_counter = 0;
-static int max_connect_retry = 10;
+static const int max_connect_retry = 10;
 
 static void wifi_deinit_sta();
 static void wifi_init_softap();
@@ -300,14 +300,14 @@ void wifi_init_softap(void)
              ethernet_settings.hostname, ethernet_settings.ap.password, ethernet_settings.ap.channel);
 }
 
-// static void wifi_deinit_softap()
-// {
-//     ESP_ERROR_CHECK(esp_wifi_stop());
-//     ESP_ERROR_CHECK(esp_netif_dhcps_stop(eth_netif));
-//     esp_netif_destroy_default_wifi(eth_netif);
-//     ESP_ERROR_CHECK(esp_wifi_deinit());
-//     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, NULL));
-// }
+static void wifi_deinit_softap()
+{
+    ESP_ERROR_CHECK(esp_wifi_stop());
+    ESP_ERROR_CHECK(esp_netif_dhcps_stop(eth_netif));
+    esp_netif_destroy_default_wifi(eth_netif);
+    ESP_ERROR_CHECK(esp_wifi_deinit());
+    ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, NULL));
+}
 
 static void wifi_init_sta()
 {
@@ -353,6 +353,9 @@ static void phy_init()
 
 bool ethernet_init(const char *json, bool *save)
 {
+    // Default hostname must be set to unique value. Will be overwritten by settings.
+    snprintf(ethernet_settings.hostname, MAX_HOSTNAME, "%s", ethernet_get_default_hostname());
+
     cJSON *doc = cJSON_Parse(json);
     if (doc == NULL)
         return false;
@@ -361,6 +364,7 @@ bool ethernet_init(const char *json, bool *save)
         *save = true;
 
     cJSON_GetString(doc, "hostname", "", ethernet_settings.hostname, MAX_HOSTNAME);
+    network_type_t prevType = ethernet_settings.type;
     ethernet_settings.type = cJSON_GetInt(doc, "type", ethernet_settings.type, netowork_type_ap, network_type_end - 1);
 
     cJSON *wifi = cJSON_GetObjectItemCaseSensitive(doc, "wifi");
@@ -387,6 +391,17 @@ bool ethernet_init(const char *json, bool *save)
         ethernet_settings.type = netowork_type_ap;
     }
 
+    if (ethernet_settings.type == netowork_type_sta && prevType != netowork_type_sta)
+    {
+        wifi_deinit_softap();
+        wifi_init_sta();
+    }
+    else if (ethernet_settings.type == netowork_type_ap && prevType != netowork_type_ap)
+    {
+        wifi_deinit_sta();
+        wifi_init_softap();
+    }
+    
     return true;
 }
 
