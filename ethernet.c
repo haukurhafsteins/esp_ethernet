@@ -27,9 +27,9 @@
 
 typedef enum
 {
-    netowork_type_ap = 0,
-    netowork_type_sta,
-    netowork_type_phy,
+    network_type_ap = 0,
+    network_type_sta,
+    network_type_phy,
     network_type_end
 } network_type_t;
 
@@ -57,7 +57,7 @@ static const char *TAG = "ETHERNET";
 static esp_netif_t *eth_netif;
 static ethernet_settings_t ethernet_settings = {
     .hostname = "AsgardGrip",
-    .type = netowork_type_ap,
+    .type = network_type_ap,
     .wifi = {
         .ip = "",
         .netmask = "",
@@ -70,6 +70,7 @@ static esp_event_handler_instance_t instance_got_ip;
 static esp_event_handler_instance_t instance_any_id;
 static int connect_retry_counter = 0;
 static const int max_connect_retry = 10;
+static bool initialized = false;
 
 static void wifi_deinit_sta();
 static void wifi_init_softap();
@@ -306,7 +307,7 @@ static void wifi_deinit_softap()
     ESP_ERROR_CHECK(esp_netif_dhcps_stop(eth_netif));
     esp_netif_destroy_default_wifi(eth_netif);
     ESP_ERROR_CHECK(esp_wifi_deinit());
-    ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, NULL));
+    esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, NULL);
 }
 
 static void wifi_init_sta()
@@ -351,6 +352,40 @@ static void phy_init()
     ESP_LOGI(TAG, "phy_init - NOT IMPLEMENTED YET");
 }
 
+static void start(network_type_t type)
+{
+    switch (type)
+    {
+    case network_type_phy:
+        phy_init();
+        break;
+    case network_type_ap:
+        wifi_init_softap();
+        break;
+    case network_type_sta:
+    default:
+        wifi_init_sta();
+        break;
+    }
+}
+
+static void stop(network_type_t type)
+{
+    switch (type)
+    {
+    case network_type_phy:
+        //phy_deinit();
+        break;
+    case network_type_ap:
+        wifi_deinit_softap();
+        break;
+    case network_type_sta:
+    default:
+        wifi_deinit_sta();
+        break;
+    }
+}
+
 bool ethernet_init(const char *json, bool *save)
 {
     // Default hostname must be set to unique value. Will be overwritten by settings.
@@ -365,7 +400,7 @@ bool ethernet_init(const char *json, bool *save)
 
     cJSON_GetString(doc, "hostname", "", ethernet_settings.hostname, MAX_HOSTNAME);
     network_type_t prevType = ethernet_settings.type;
-    ethernet_settings.type = cJSON_GetInt(doc, "type", ethernet_settings.type, netowork_type_ap, network_type_end - 1);
+    ethernet_settings.type = cJSON_GetInt(doc, "type", ethernet_settings.type, network_type_ap, network_type_end - 1);
 
     cJSON *wifi = cJSON_GetObjectItemCaseSensitive(doc, "wifi");
     cJSON_GetString(wifi, "ip", ethernet_settings.wifi.ip, ethernet_settings.wifi.ip, MAX_IP);
@@ -383,23 +418,18 @@ bool ethernet_init(const char *json, bool *save)
 
     if (!ethernet_valid_hostname(ethernet_settings.hostname))
         snprintf(ethernet_settings.hostname, MAX_HOSTNAME, "%s", ethernet_get_default_hostname());
-    //ESP_LOGI(TAG, "Hostname: %s", ethernet_settings.hostname);
 
     if (ethernet_settings.wifi.ssid[0] == '\0')
     {
         ESP_LOGW(TAG, "No SSID set. Starting AP mode.");
-        ethernet_settings.type = netowork_type_ap;
+        ethernet_settings.type = network_type_ap;
     }
 
-    if (ethernet_settings.type == netowork_type_sta && prevType != netowork_type_sta)
+    if (initialized && ethernet_settings.type != prevType)
     {
-        wifi_deinit_softap();
-        wifi_init_sta();
-    }
-    else if (ethernet_settings.type == netowork_type_ap && prevType != netowork_type_ap)
-    {
-        wifi_deinit_sta();
-        wifi_init_softap();
+        ESP_LOGI(TAG, "Network type changed. Restarting network.");
+        stop(prevType);
+        start(ethernet_settings.type);
     }
     
     return true;
@@ -409,23 +439,11 @@ void ethernet_start()
 {
     ESP_ERROR_CHECK(esp_netif_init());
 
-    switch (ethernet_settings.type)
-    {
-    case netowork_type_phy:
-        ESP_LOGI(TAG, "Network type: PHY");
-        phy_init();
-        break;
-    case netowork_type_ap:
-    default:
-        ESP_LOGI(TAG, "Network type: AP");
-        wifi_init_softap();
-        break;
-    case netowork_type_sta:
-        ESP_LOGI(TAG, "Network type: STA");
-        wifi_init_sta();
-        break;
-    }
+    start(ethernet_settings.type);
+    initialized = true;
 }
+
 void ethernet_stop()
 {
+    stop(ethernet_settings.type);
 }
