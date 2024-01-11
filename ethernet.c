@@ -216,7 +216,7 @@ esp_netif_t *ethernet_get_netif()
 }
 const char *ethernet_get_ip()
 {
-    const esp_netif_ip_info_t ip_info;
+    esp_netif_ip_info_t ip_info;
     if (ESP_OK == esp_netif_get_ip_info(eth_netif, &ip_info))
         return ip4addr_ntoa(&ip_info.ip);
     return "";
