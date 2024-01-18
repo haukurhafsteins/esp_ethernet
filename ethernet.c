@@ -12,6 +12,7 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "driver/gpio.h"
+#include "mdns.h"
 #include "sdkconfig.h"
 // #include "nvsstorage.h"
 #include "cJSON.h"
@@ -36,6 +37,7 @@ typedef enum
 typedef struct
 {
     char hostname[MAX_HOSTNAME];
+    char iname[MAX_HOSTNAME];
     network_type_t type;
     struct
     {
@@ -56,7 +58,8 @@ typedef struct
 static const char *TAG = "ETHERNET";
 static esp_netif_t *eth_netif;
 static ethernet_settings_t ethernet_settings = {
-    .hostname = "AsgardGrip",
+    .hostname = "network",
+    .iname = "network",
     .type = network_type_ap,
     .wifi = {
         .ip = "",
@@ -323,8 +326,7 @@ static void phy_init()
     esp_netif_inherent_config_t esp_netif_config = ESP_NETIF_INHERENT_DEFAULT_ETH();
     esp_netif_config_t cfg_spi = {
         .base = &esp_netif_config,
-        .stack = ESP_NETIF_NETSTACK_DEFAULT_ETH
-    };
+        .stack = ESP_NETIF_NETSTACK_DEFAULT_ETH};
     char if_key_str[10];
     char if_desc_str[10];
     char num_str[3];
@@ -397,7 +399,7 @@ static void stop(network_type_t type)
     switch (type)
     {
     case network_type_phy:
-        //phy_deinit();
+        // phy_deinit();
         break;
     case network_type_ap:
         wifi_deinit_softap();
@@ -422,6 +424,7 @@ bool ethernet_init(const char *json, bool *save)
         *save = true;
 
     cJSON_GetString(doc, "hostname", "", ethernet_settings.hostname, MAX_HOSTNAME);
+    cJSON_GetString(doc, "iname", "", ethernet_settings.iname, MAX_HOSTNAME);
     network_type_t prevType = ethernet_settings.type;
     ethernet_settings.type = cJSON_GetInt(doc, "type", ethernet_settings.type, network_type_ap, network_type_end - 1);
 
@@ -452,10 +455,33 @@ bool ethernet_init(const char *json, bool *save)
     {
         ESP_LOGI(TAG, "Network type changed. Restarting network.");
         stop(prevType);
-    start(ethernet_settings.type);
+        start(ethernet_settings.type);
     }
 
     return true;
+}
+
+void ethernet_start_mdns_service()
+{
+    esp_err_t err = mdns_init();
+    if (err) {
+        ESP_LOGE(TAG, "MDNS Init failed: %s", esp_err_to_name(err));
+        return;
+    }
+
+    mdns_hostname_set(ethernet_settings.hostname);
+    mdns_instance_name_set(ethernet_settings.iname);
+
+    mdns_txt_item_t serviceTxtData[3] = {
+        {"board", "esp32"},
+        {"u", "user"},
+        {"p", "password"}
+    };
+
+    ESP_ERROR_CHECK( mdns_service_add("ESP32-WebServer", "_http", "_tcp", 80, serviceTxtData, 3) );
+    ESP_ERROR_CHECK( mdns_service_subtype_add_for_host("ESP32-WebServer", "_http", "_tcp", NULL, "_server") );
+
+    ESP_LOGI(TAG, "MDNS service started");
 }
 
 void ethernet_start()
@@ -468,5 +494,5 @@ void ethernet_start()
 
 void ethernet_stop()
 {
-stop(ethernet_settings.type);
+    stop(ethernet_settings.type);
 }
