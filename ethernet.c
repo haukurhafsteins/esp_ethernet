@@ -178,36 +178,6 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
     {
         ESP_LOGW(TAG, "Unhandled network event - Base: %s, id: %lu", event_base, event_id);
     }
-
-    // if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
-    // {
-    //     esp_wifi_connect();
-    // }
-    // else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED)
-    // {
-    //     esp_wifi_connect();
-    // }
-    // else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
-    // {
-    //     ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
-    //     ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-    // }
-    // else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STACONNECTED)
-    // {
-    //     wifi_event_ap_staconnected_t *event = (wifi_event_ap_staconnected_t *)event_data;
-    //     ESP_LOGI(TAG, "station " MACSTR " join, AID=%d",
-    //              MAC2STR(event->mac), event->aid);
-    // }
-    // else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STADISCONNECTED)
-    // {
-    //     wifi_event_ap_stadisconnected_t *event = (wifi_event_ap_stadisconnected_t *)event_data;
-    //     ESP_LOGI(TAG, "station " MACSTR " leave, AID=%d",
-    //              MAC2STR(event->mac), event->aid);
-    // }
-    // else
-    // {
-    //     // ESP_LOGI(TAG, "Network event - Base: %s, id: %lu", event_base, event_id);
-    // }
 }
 
 esp_netif_t *ethernet_get_netif()
@@ -216,7 +186,7 @@ esp_netif_t *ethernet_get_netif()
 }
 const char *ethernet_get_ip()
 {
-    esp_netif_ip_info_t ip_info;
+    const esp_netif_ip_info_t ip_info;
     if (ESP_OK == esp_netif_get_ip_info(eth_netif, &ip_info))
         return ip4addr_ntoa(&ip_info.ip);
     return "";
@@ -349,7 +319,60 @@ static void wifi_deinit_sta()
 
 static void phy_init()
 {
-    ESP_LOGI(TAG, "phy_init - NOT IMPLEMENTED YET");
+    //  Create instance(s) of esp-netif for SPI Ethernet(s)
+    esp_netif_inherent_config_t esp_netif_config = ESP_NETIF_INHERENT_DEFAULT_ETH();
+    esp_netif_config_t cfg_spi = {
+        .base = &esp_netif_config,
+        .stack = ESP_NETIF_NETSTACK_DEFAULT_ETH
+    };
+    char if_key_str[10];
+    char if_desc_str[10];
+    char num_str[3];
+    itoa(0, num_str, 10);
+    strcat(strcpy(if_key_str, "ETH_SPI_"), num_str);
+    strcat(strcpy(if_desc_str, "eth"), num_str);
+    esp_netif_config.if_key = if_key_str;
+    esp_netif_config.if_desc = if_desc_str;
+    esp_netif_config.route_prio = 30;
+    eth_netif = esp_netif_new(&cfg_spi);
+
+    eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG(); // apply default common MAC configuration
+    eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG(); // apply default PHY configuration
+    phy_config.phy_addr = 0;                                // alter the PHY address according to your board design
+    phy_config.reset_gpio_num = GPIO_NUM_39;                // alter the GPIO used for PHY reset
+    spi_bus_config_t buscfg = {
+        .miso_io_num = GPIO_NUM_38,
+        .mosi_io_num = GPIO_NUM_36,
+        .sclk_io_num = GPIO_NUM_37,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+    };
+    ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
+    spi_device_interface_config_t spi_devcfg = {
+        .mode = 0,
+        .clock_speed_hz = 20 * 1000 * 1000,
+        .spics_io_num = GPIO_NUM_35,
+        .queue_size = 20};
+    eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(SPI3_HOST, &spi_devcfg);
+    w5500_config.int_gpio_num = GPIO_NUM_40;
+    esp_eth_mac_t *mac_spi = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
+    esp_eth_phy_t *phy_spi = esp_eth_phy_new_w5500(&phy_config);
+
+    esp_eth_config_t eth_config_spi = ETH_DEFAULT_CONFIG(mac_spi, phy_spi);
+    esp_eth_handle_t eth_handle = NULL;
+    ESP_ERROR_CHECK(esp_eth_driver_install(&eth_config_spi, &eth_handle));
+
+    uint8_t mac_addr[6];
+    esp_read_mac(mac_addr, ESP_MAC_ETH);
+    ESP_ERROR_CHECK(esp_eth_ioctl(eth_handle, ETH_CMD_S_MAC_ADDR, mac_addr));
+    ESP_ERROR_CHECK(esp_netif_attach(eth_netif, esp_eth_new_netif_glue(eth_handle)));
+
+    esp_event_handler_instance_register(ETH_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, &instance_any_id);
+    esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL, &instance_got_ip);
+
+    esp_netif_set_hostname(eth_netif, ethernet_settings.hostname);
+
+    esp_eth_start(eth_handle);
 }
 
 static void start(network_type_t type)
@@ -419,7 +442,7 @@ bool ethernet_init(const char *json, bool *save)
     if (!ethernet_valid_hostname(ethernet_settings.hostname))
         snprintf(ethernet_settings.hostname, MAX_HOSTNAME, "%s", ethernet_get_default_hostname());
 
-    if (ethernet_settings.wifi.ssid[0] == '\0')
+    if (ethernet_settings.type == network_type_sta && ethernet_settings.wifi.ssid[0] == '\0')
     {
         ESP_LOGW(TAG, "No SSID set. Starting AP mode.");
         ethernet_settings.type = network_type_ap;
@@ -429,9 +452,9 @@ bool ethernet_init(const char *json, bool *save)
     {
         ESP_LOGI(TAG, "Network type changed. Restarting network.");
         stop(prevType);
-        start(ethernet_settings.type);
+    start(ethernet_settings.type);
     }
-    
+
     return true;
 }
 
@@ -445,5 +468,5 @@ void ethernet_start()
 
 void ethernet_stop()
 {
-    stop(ethernet_settings.type);
+stop(ethernet_settings.type);
 }
