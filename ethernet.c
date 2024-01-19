@@ -12,7 +12,6 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "driver/gpio.h"
-#include "mdns.h"
 #include "sdkconfig.h"
 // #include "nvsstorage.h"
 #include "cJSON.h"
@@ -37,7 +36,6 @@ typedef enum
 typedef struct
 {
     char hostname[MAX_HOSTNAME];
-    char iname[MAX_HOSTNAME];
     network_type_t type;
     struct
     {
@@ -58,8 +56,7 @@ typedef struct
 static const char *TAG = "ETHERNET";
 static esp_netif_t *eth_netif;
 static ethernet_settings_t ethernet_settings = {
-    .hostname = "network",
-    .iname = "network",
+    .hostname = "esp32",
     .type = network_type_ap,
     .wifi = {
         .ip = "",
@@ -74,6 +71,7 @@ static esp_event_handler_instance_t instance_any_id;
 static int connect_retry_counter = 0;
 static const int max_connect_retry = 10;
 static bool initialized = false;
+static bool got_ip = false;
 
 static void wifi_deinit_sta();
 static void wifi_init_softap();
@@ -135,6 +133,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
         ip_event_got_ip_t *event;
         switch (event_id)
         {
+        case IP_EVENT_ETH_GOT_IP:
         case IP_EVENT_STA_GOT_IP:
             event = (ip_event_got_ip_t *)event_data;
             const esp_netif_ip_info_t *ip_info = &event->ip_info;
@@ -144,6 +143,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
             ESP_LOGI(TAG, "ETH MASK:" IPSTR, IP2STR(&ip_info->netmask));
             ESP_LOGI(TAG, "ETH GW  :" IPSTR, IP2STR(&ip_info->gw));
             ESP_LOGI(TAG, "~~~~~~~~~~~");
+            got_ip = true;
             break;
         default:
             ESP_LOGW(TAG, "Unhandled event_id Base: IP_EVENT, id: %lu", event_id);
@@ -174,6 +174,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
             ESP_LOGI(TAG, "Ethernet Stopped");
             break;
         default:
+            ESP_LOGW(TAG, "Unhandled event_id Base: ETH_EVENT, id: %lu", event_id);
             break;
         }
     }
@@ -189,9 +190,9 @@ esp_netif_t *ethernet_get_netif()
 }
 const char *ethernet_get_ip()
 {
-    const esp_netif_ip_info_t ip_info;
+    esp_netif_ip_info_t ip_info;
     if (ESP_OK == esp_netif_get_ip_info(eth_netif, &ip_info))
-        return ip4addr_ntoa(&ip_info.ip);
+        return ip4addr_ntoa((const ip4_addr_t *)&ip_info.ip);
     return "";
 }
 
@@ -216,6 +217,10 @@ static bool ethernet_valid_hostname(const char *hostname)
     return strlen(hostname) > 0 && strlen(hostname) < MAX_HOSTNAME;
 }
 
+bool ethernet_got_ip()
+{
+    return got_ip;
+}
 bool ethernet_valid_ip(const char *ip)
 {
     struct in_addr in;
@@ -423,8 +428,7 @@ bool ethernet_init(const char *json, bool *save)
     if (save != NULL)
         *save = true;
 
-    cJSON_GetString(doc, "hostname", "", ethernet_settings.hostname, MAX_HOSTNAME);
-    cJSON_GetString(doc, "iname", "", ethernet_settings.iname, MAX_HOSTNAME);
+    cJSON_GetString(doc, "hostname", ethernet_settings.hostname, ethernet_settings.hostname, MAX_HOSTNAME);
     network_type_t prevType = ethernet_settings.type;
     ethernet_settings.type = cJSON_GetInt(doc, "type", ethernet_settings.type, network_type_ap, network_type_end - 1);
 
@@ -443,7 +447,10 @@ bool ethernet_init(const char *json, bool *save)
     cJSON_Delete(doc);
 
     if (!ethernet_valid_hostname(ethernet_settings.hostname))
+    {
         snprintf(ethernet_settings.hostname, MAX_HOSTNAME, "%s", ethernet_get_default_hostname());
+        ESP_LOGW(TAG, "Invalid hostname. Using default: %s", ethernet_settings.hostname);
+    }
 
     if (ethernet_settings.type == network_type_sta && ethernet_settings.wifi.ssid[0] == '\0')
     {
@@ -459,29 +466,6 @@ bool ethernet_init(const char *json, bool *save)
     }
 
     return true;
-}
-
-void ethernet_start_mdns_service()
-{
-    esp_err_t err = mdns_init();
-    if (err) {
-        ESP_LOGE(TAG, "MDNS Init failed: %s", esp_err_to_name(err));
-        return;
-    }
-
-    mdns_hostname_set(ethernet_settings.hostname);
-    mdns_instance_name_set(ethernet_settings.iname);
-
-    mdns_txt_item_t serviceTxtData[3] = {
-        {"board", "esp32"},
-        {"u", "user"},
-        {"p", "password"}
-    };
-
-    ESP_ERROR_CHECK( mdns_service_add("ESP32-WebServer", "_http", "_tcp", 80, serviceTxtData, 3) );
-    ESP_ERROR_CHECK( mdns_service_subtype_add_for_host("ESP32-WebServer", "_http", "_tcp", NULL, "_server") );
-
-    ESP_LOGI(TAG, "MDNS service started");
 }
 
 void ethernet_start()

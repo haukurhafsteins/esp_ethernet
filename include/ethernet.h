@@ -8,9 +8,8 @@ extern "C"
 
 bool ethernet_init(const char *json, bool* save);
 esp_err_t ethernet_start();
-void ethernet_start_mdns_service();
-
 bool ethernet_stop();
+bool ethernet_got_ip();
 esp_netif_t* ethernet_get_netif();
 const char* ethernet_get_hostname();
 const char* ethernet_get_ip();
