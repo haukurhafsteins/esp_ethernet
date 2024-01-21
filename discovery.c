@@ -6,11 +6,12 @@
 #include "cJSON_Params.h"
 #include "ethernet.h"
 
-#define TAG "discovery"
 #define MAX_INST_NAME 32
 #define MAX_BOARD_NAME 32
 #define MAX_SERVICE_TYPE 16
 #define MAX_PROTO_TYPE 16
+
+static const char TAG[] = "discovery";
 
 typedef struct 
 {

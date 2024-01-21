@@ -327,6 +327,7 @@ static void wifi_deinit_sta()
 
 static void phy_init()
 {
+#ifdef CONFIG_ETH_ENABLED
     //  Create instance(s) of esp-netif for SPI Ethernet(s)
     esp_netif_inherent_config_t esp_netif_config = ESP_NETIF_INHERENT_DEFAULT_ETH();
     esp_netif_config_t cfg_spi = {
@@ -360,11 +361,12 @@ static void phy_init()
         .clock_speed_hz = 20 * 1000 * 1000,
         .spics_io_num = GPIO_NUM_35,
         .queue_size = 20};
+#ifdef CONFIG_ETH_SPI_ETHERNET_W5500
     eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(SPI3_HOST, &spi_devcfg);
     w5500_config.int_gpio_num = GPIO_NUM_40;
     esp_eth_mac_t *mac_spi = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
     esp_eth_phy_t *phy_spi = esp_eth_phy_new_w5500(&phy_config);
-
+#endif
     esp_eth_config_t eth_config_spi = ETH_DEFAULT_CONFIG(mac_spi, phy_spi);
     esp_eth_handle_t eth_handle = NULL;
     ESP_ERROR_CHECK(esp_eth_driver_install(&eth_config_spi, &eth_handle));
@@ -380,6 +382,7 @@ static void phy_init()
     esp_netif_set_hostname(eth_netif, ethernet_settings.hostname);
 
     esp_eth_start(eth_handle);
+#endif
 }
 
 static void start(network_type_t type)
