@@ -7,13 +7,15 @@ extern "C"
 #endif
 
 bool ethernet_init(const char *json, bool* save);
-esp_err_t ethernet_start();
-bool ethernet_stop();
+void ethernet_start();
+void ethernet_start_ap();
+void ethernet_stop();
 bool ethernet_got_ip();
 esp_netif_t* ethernet_get_netif();
 const char* ethernet_get_hostname();
 const char* ethernet_get_ip();
 bool ethernet_valid_ip(const char *ip);
+int ethernet_get_retry_counter();
 
 #ifdef __cplusplus
 }

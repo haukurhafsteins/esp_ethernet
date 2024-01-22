@@ -13,9 +13,9 @@
 #include "esp_log.h"
 #include "driver/gpio.h"
 #include "sdkconfig.h"
-// #include "nvsstorage.h"
 #include "cJSON.h"
 #include "cJSON_Params.h"
+#include "ethernet.h"
 
 #define MAX_HOSTNAME 32
 #define MAX_IP 20
@@ -69,7 +69,6 @@ static ethernet_settings_t ethernet_settings = {
 static esp_event_handler_instance_t instance_got_ip;
 static esp_event_handler_instance_t instance_any_id;
 static int connect_retry_counter = 0;
-static const int max_connect_retry = 10;
 static bool initialized = false;
 static bool got_ip = false;
 
@@ -94,17 +93,12 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
             break;
         case WIFI_EVENT_STA_CONNECTED:
             ESP_LOGI(TAG, "WIFI_EVENT_STA_CONNECTED");
+            connect_retry_counter = 0;
             break;
         case WIFI_EVENT_STA_DISCONNECTED:
-            connect_retry_counter++;
-            if (connect_retry_counter >= max_connect_retry)
-            {
-                wifi_deinit_sta();
-                wifi_init_softap();
-            }
-            else
-                esp_wifi_connect();
             ESP_LOGI(TAG, "WIFI_EVENT_STA_DISCONNECTED");
+            connect_retry_counter++;
+                esp_wifi_connect();
             break;
 
         case WIFI_EVENT_AP_STOP:
@@ -116,12 +110,12 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
         case WIFI_EVENT_AP_STACONNECTED:
             event_connected = (wifi_event_ap_staconnected_t *)event_data;
             ESP_LOGI(TAG, "WIFI_EVENT_AP_STACONNECTED: station " MACSTR " join, AID=%d",
-                     MAC2STR(event_connected->mac), event_connected->aid);
+            MAC2STR(event_connected->mac), event_connected->aid);
             break;
         case WIFI_EVENT_AP_STADISCONNECTED:
             event_disconnected = (wifi_event_ap_stadisconnected_t *)event_data;
             ESP_LOGI(TAG, "WIFI_EVENT_AP_STADISCONNECTED: station " MACSTR " leave, AID=%d",
-                     MAC2STR(event_disconnected->mac), event_disconnected->aid);
+            MAC2STR(event_disconnected->mac), event_disconnected->aid);
             break;
         default:
             ESP_LOGW(TAG, "Unhandled event_id, Base: WIFI_EVENT, id: %lu", event_id);
@@ -323,7 +317,7 @@ static void wifi_deinit_sta()
     ESP_ERROR_CHECK(esp_wifi_deinit());
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, instance_got_ip));
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, instance_any_id));
-}
+    }
 
 static void phy_init()
 {
@@ -418,6 +412,10 @@ static void stop(network_type_t type)
         break;
     }
 }
+int ethernet_get_retry_counter()
+{
+    return connect_retry_counter;
+}
 
 bool ethernet_init(const char *json, bool *save)
 {
@@ -477,6 +475,12 @@ void ethernet_start()
 
     start(ethernet_settings.type);
     initialized = true;
+}
+
+void ethernet_start_ap()
+{
+    ethernet_settings.type = network_type_ap;
+    ethernet_start();
 }
 
 void ethernet_stop()
