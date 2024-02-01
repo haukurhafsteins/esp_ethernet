@@ -51,24 +51,30 @@ typedef struct
         int channel;
         char password[MAX_PW];
     } ap;
+    struct
+    {
+        char ip[MAX_IP];
+        char netmask[MAX_IP];
+        char gateway[MAX_IP];
+        char password[MAX_PW];
+        bool dhcp;
+    } phy;
+
 } ethernet_settings_t;
 
 static const char *TAG = "ETHERNET";
 static esp_netif_t *eth_netif;
+static esp_eth_handle_t eth_handle = NULL;
 static ethernet_settings_t ethernet_settings = {
     .hostname = "esp32",
     .type = network_type_ap,
-    .wifi = {
-        .ip = "",
-        .netmask = "",
-        .gateway = "",
-        .ssid = "",
-        .password = "",
-        .dhcp = true},
-    .ap = {.channel = 2, .password = ""}};
+    .wifi = {.ip = "", .netmask = "", .gateway = "", .ssid = "", .password = "", .dhcp = true},
+    .ap = {.channel = 2, .password = ""},
+    .phy = {.ip = "", .netmask = "", .gateway = "", .password = "", .dhcp = true},
+};
+
 static esp_event_handler_instance_t instance_got_ip;
 static esp_event_handler_instance_t instance_any_id;
-static int connect_retry_counter = 0;
 static bool initialized = false;
 static bool got_ip = false;
 
@@ -93,12 +99,14 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
             break;
         case WIFI_EVENT_STA_CONNECTED:
             ESP_LOGI(TAG, "WIFI_EVENT_STA_CONNECTED");
-            connect_retry_counter = 0;
+            if (ethernet_settings.wifi.dhcp == false)
+                got_ip = true;
             break;
         case WIFI_EVENT_STA_DISCONNECTED:
             ESP_LOGI(TAG, "WIFI_EVENT_STA_DISCONNECTED");
-            connect_retry_counter++;
-                esp_wifi_connect();
+            if (ethernet_settings.wifi.dhcp == true)
+                got_ip = false;
+            esp_wifi_connect();
             break;
 
         case WIFI_EVENT_AP_STOP:
@@ -106,16 +114,17 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
             break;
         case WIFI_EVENT_AP_START:
             ESP_LOGI(TAG, "WIFI_EVENT_AP_START");
+            got_ip = true;
             break;
         case WIFI_EVENT_AP_STACONNECTED:
             event_connected = (wifi_event_ap_staconnected_t *)event_data;
             ESP_LOGI(TAG, "WIFI_EVENT_AP_STACONNECTED: station " MACSTR " join, AID=%d",
-            MAC2STR(event_connected->mac), event_connected->aid);
+                     MAC2STR(event_connected->mac), event_connected->aid);
             break;
         case WIFI_EVENT_AP_STADISCONNECTED:
             event_disconnected = (wifi_event_ap_stadisconnected_t *)event_data;
             ESP_LOGI(TAG, "WIFI_EVENT_AP_STADISCONNECTED: station " MACSTR " leave, AID=%d",
-            MAC2STR(event_disconnected->mac), event_disconnected->aid);
+                     MAC2STR(event_disconnected->mac), event_disconnected->aid);
             break;
         default:
             ESP_LOGW(TAG, "Unhandled event_id, Base: WIFI_EVENT, id: %lu", event_id);
@@ -148,15 +157,17 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
     {
         uint8_t mac_addr[6] = {0};
         // we can get the ethernet driver handle from event data
-        esp_eth_handle_t eth_handle = *(esp_eth_handle_t *)event_data;
+        esp_eth_handle_t handle = *(esp_eth_handle_t *)event_data;
 
         switch (event_id)
         {
         case ETHERNET_EVENT_CONNECTED:
-            esp_eth_ioctl(eth_handle, ETH_CMD_G_MAC_ADDR, mac_addr);
+            esp_eth_ioctl(handle, ETH_CMD_G_MAC_ADDR, mac_addr);
             ESP_LOGI(TAG, "Ethernet Link Up");
             ESP_LOGI(TAG, "Ethernet HW Addr %02x:%02x:%02x:%02x:%02x:%02x",
                      mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+            if (ethernet_settings.phy.dhcp == false)
+                got_ip = true;
             break;
         case ETHERNET_EVENT_DISCONNECTED:
             ESP_LOGI(TAG, "Ethernet Link Down");
@@ -176,6 +187,17 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
     {
         ESP_LOGW(TAG, "Unhandled network event - Base: %s, id: %lu", event_base, event_id);
     }
+}
+
+static void set_static_ip(const char *ip, const char *netmask, const char *gateway)
+{
+    esp_netif_ip_info_t ip_info;
+    ip_info.ip.addr = ipaddr_addr(ip);
+    ip_info.gw.addr = ipaddr_addr(gateway);
+    ip_info.netmask.addr = ipaddr_addr(netmask);
+
+    ESP_ERROR_CHECK(esp_netif_set_ip_info(eth_netif, &ip_info));
+    ESP_LOGI(TAG, "Static IP set: %s, %s, %s", ip, netmask, gateway);
 }
 
 esp_netif_t *ethernet_get_netif()
@@ -223,6 +245,7 @@ bool ethernet_valid_ip(const char *ip)
 
 void wifi_init_softap(void)
 {
+    printf("Creating eth_netif in %s\n", __func__);
     eth_netif = esp_netif_create_default_wifi_ap();
     assert(eth_netif);
 
@@ -288,6 +311,7 @@ static void wifi_init_sta()
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, &instance_any_id));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL, &instance_got_ip));
+    printf("Creating eth_netif in %s\n", __func__);
     eth_netif = esp_netif_create_default_wifi_sta();
     assert(eth_netif);
     wifi_config_t wifi_config = {
@@ -307,6 +331,11 @@ static void wifi_init_sta()
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     esp_netif_set_hostname(eth_netif, ethernet_settings.hostname);
+    if (ethernet_settings.wifi.dhcp == false)
+    {
+        ESP_ERROR_CHECK(esp_netif_dhcpc_stop(eth_netif)); 
+        set_static_ip(ethernet_settings.wifi.ip, ethernet_settings.wifi.netmask, ethernet_settings.wifi.gateway);
+    }
     ESP_ERROR_CHECK(esp_wifi_start());
 }
 
@@ -317,7 +346,7 @@ static void wifi_deinit_sta()
     ESP_ERROR_CHECK(esp_wifi_deinit());
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, instance_got_ip));
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, instance_any_id));
-    }
+}
 
 static void phy_init()
 {
@@ -362,7 +391,6 @@ static void phy_init()
     esp_eth_phy_t *phy_spi = esp_eth_phy_new_w5500(&phy_config);
 #endif
     esp_eth_config_t eth_config_spi = ETH_DEFAULT_CONFIG(mac_spi, phy_spi);
-    esp_eth_handle_t eth_handle = NULL;
     ESP_ERROR_CHECK(esp_eth_driver_install(&eth_config_spi, &eth_handle));
 
     uint8_t mac_addr[6];
@@ -371,12 +399,27 @@ static void phy_init()
     ESP_ERROR_CHECK(esp_netif_attach(eth_netif, esp_eth_new_netif_glue(eth_handle)));
 
     esp_event_handler_instance_register(ETH_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, &instance_any_id);
-    esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL, &instance_got_ip);
+    esp_event_handler_instance_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &wifi_event_handler, NULL, &instance_got_ip);
 
     esp_netif_set_hostname(eth_netif, ethernet_settings.hostname);
+    if (ethernet_settings.phy.dhcp == false)
+    {
+        ESP_ERROR_CHECK(esp_netif_dhcpc_stop(eth_netif)); 
+        set_static_ip(ethernet_settings.phy.ip, ethernet_settings.phy.netmask, ethernet_settings.phy.gateway);
+    }
 
     esp_eth_start(eth_handle);
 #endif
+}
+
+static void phy_deinit()
+{
+    ESP_ERROR_CHECK(esp_eth_stop(eth_handle));
+    ESP_ERROR_CHECK(esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_ETH_GOT_IP, instance_got_ip));
+    ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, instance_any_id));
+    ESP_ERROR_CHECK(esp_eth_driver_uninstall(eth_handle));
+    esp_netif_destroy(eth_netif);
+    eth_handle = NULL;
 }
 
 static void start(network_type_t type)
@@ -401,7 +444,7 @@ static void stop(network_type_t type)
     switch (type)
     {
     case network_type_phy:
-        // phy_deinit();
+        phy_deinit();
         break;
     case network_type_ap:
         wifi_deinit_softap();
@@ -411,10 +454,6 @@ static void stop(network_type_t type)
         wifi_deinit_sta();
         break;
     }
-}
-int ethernet_get_retry_counter()
-{
-    return connect_retry_counter;
 }
 
 bool ethernet_init(const char *json, bool *save)
@@ -434,16 +473,32 @@ bool ethernet_init(const char *json, bool *save)
     ethernet_settings.type = cJSON_GetInt(doc, "type", ethernet_settings.type, network_type_ap, network_type_end - 1);
 
     cJSON *wifi = cJSON_GetObjectItemCaseSensitive(doc, "wifi");
-    cJSON_GetString(wifi, "ip", ethernet_settings.wifi.ip, ethernet_settings.wifi.ip, MAX_IP);
-    cJSON_GetString(wifi, "netmask", ethernet_settings.wifi.netmask, ethernet_settings.wifi.netmask, MAX_IP);
-    cJSON_GetString(wifi, "gateway", ethernet_settings.wifi.gateway, ethernet_settings.wifi.gateway, MAX_IP);
-    cJSON_GetString(wifi, "ssid", ethernet_settings.wifi.ssid, ethernet_settings.wifi.ssid, MAX_SSID);
-    cJSON_GetString(wifi, "password", ethernet_settings.wifi.password, ethernet_settings.wifi.password, MAX_PW);
-    ethernet_settings.wifi.dhcp = cJSON_GetBool(wifi, "dhcp", ethernet_settings.wifi.dhcp);
+    if (wifi != NULL)
+    {
+        cJSON_GetString(wifi, "ip", ethernet_settings.wifi.ip, ethernet_settings.wifi.ip, MAX_IP);
+        cJSON_GetString(wifi, "netmask", ethernet_settings.wifi.netmask, ethernet_settings.wifi.netmask, MAX_IP);
+        cJSON_GetString(wifi, "gateway", ethernet_settings.wifi.gateway, ethernet_settings.wifi.gateway, MAX_IP);
+        cJSON_GetString(wifi, "ssid", ethernet_settings.wifi.ssid, ethernet_settings.wifi.ssid, MAX_SSID);
+        cJSON_GetString(wifi, "password", ethernet_settings.wifi.password, ethernet_settings.wifi.password, MAX_PW);
+        ethernet_settings.wifi.dhcp = cJSON_GetBool(wifi, "dhcp", ethernet_settings.wifi.dhcp);
+    }
 
     cJSON *ap = cJSON_GetObjectItemCaseSensitive(doc, "ap");
-    ethernet_settings.ap.channel = cJSON_GetInt(ap, "channel", (int)ethernet_settings.ap.channel, 1, 13);
-    cJSON_GetString(ap, "password", ethernet_settings.ap.password, ethernet_settings.ap.password, MAX_PW);
+    if (ap != NULL)
+    {
+        ethernet_settings.ap.channel = cJSON_GetInt(ap, "channel", (int)ethernet_settings.ap.channel, 1, 13);
+        cJSON_GetString(ap, "password", ethernet_settings.ap.password, ethernet_settings.ap.password, MAX_PW);
+    }
+
+    cJSON *phy = cJSON_GetObjectItemCaseSensitive(doc, "phy");
+    if (phy != NULL)
+    {
+        cJSON_GetString(phy, "ip", ethernet_settings.phy.ip, ethernet_settings.phy.ip, MAX_IP);
+        cJSON_GetString(phy, "netmask", ethernet_settings.phy.netmask, ethernet_settings.phy.netmask, MAX_IP);
+        cJSON_GetString(phy, "gateway", ethernet_settings.phy.gateway, ethernet_settings.phy.gateway, MAX_IP);
+        cJSON_GetString(phy, "password", ethernet_settings.phy.password, ethernet_settings.phy.password, MAX_PW);
+        ethernet_settings.phy.dhcp = cJSON_GetBool(phy, "dhcp", ethernet_settings.phy.dhcp);
+    }
 
     cJSON_Delete(doc);
 
@@ -459,12 +514,13 @@ bool ethernet_init(const char *json, bool *save)
         ethernet_settings.type = network_type_ap;
     }
 
-    if (initialized && ethernet_settings.type != prevType)
-    {
-        ESP_LOGI(TAG, "Network type changed. Restarting network.");
-        stop(prevType);
-        start(ethernet_settings.type);
-    }
+    // TODO: Check if type changed and restart network
+    // if (initialized && ethernet_settings.type != prevType)
+    // {
+    //     ESP_LOGI(TAG, "Network type changed. Restarting network.");
+    //     stop(prevType);
+    //     start(ethernet_settings.type);
+    // }
 
     return true;
 }
