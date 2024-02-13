@@ -470,7 +470,7 @@ bool ethernet_init(const char *json, bool *save)
         *save = true;
 
     cJSON_GetString(doc, "hostname", ethernet_settings.hostname, ethernet_settings.hostname, MAX_HOSTNAME);
-    network_type_t prevType = ethernet_settings.type;
+    //network_type_t prevType = ethernet_settings.type;
     ethernet_settings.type = cJSON_GetInt(doc, "type", ethernet_settings.type, network_type_ap, network_type_end - 1);
 
     cJSON *wifi = cJSON_GetObjectItemCaseSensitive(doc, "wifi");
