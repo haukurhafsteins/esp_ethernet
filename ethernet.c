@@ -245,7 +245,6 @@ bool ethernet_valid_ip(const char *ip)
 
 void wifi_init_softap(void)
 {
-    printf("Creating eth_netif in %s\n", __func__);
     eth_netif = esp_netif_create_default_wifi_ap();
     assert(eth_netif);
 
@@ -311,7 +310,6 @@ static void wifi_init_sta()
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, &instance_any_id));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL, &instance_got_ip));
-    printf("Creating eth_netif in %s\n", __func__);
     eth_netif = esp_netif_create_default_wifi_sta();
     assert(eth_netif);
     wifi_config_t wifi_config = {
