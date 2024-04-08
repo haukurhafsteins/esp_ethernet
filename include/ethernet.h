@@ -9,6 +9,7 @@ extern "C"
 bool ethernet_init(const char *json, bool* save);
 void ethernet_start();
 void ethernet_start_ap();
+void ethernet_start_phy();
 void ethernet_stop();
 bool ethernet_got_ip();
 esp_netif_t* ethernet_get_netif();

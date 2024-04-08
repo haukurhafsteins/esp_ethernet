@@ -367,6 +367,7 @@ static void phy_init()
     eth_netif = esp_netif_new(&cfg_spi);
 
     eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG(); // apply default common MAC configuration
+    mac_config.rx_task_stack_size = 3 * 1024;               // Is default 2048 but got stack overflow
     eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG(); // apply default PHY configuration
     phy_config.phy_addr = 0;                                // alter the PHY address according to your board design
     phy_config.reset_gpio_num = GPIO_NUM_39;                // alter the GPIO used for PHY reset
@@ -380,7 +381,7 @@ static void phy_init()
     ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
     spi_device_interface_config_t spi_devcfg = {
         .mode = 0,
-        .clock_speed_hz = 20 * 1000 * 1000,
+        .clock_speed_hz = 40 * 1000 * 1000,
         .spics_io_num = GPIO_NUM_35,
         .queue_size = 20};
 #ifdef CONFIG_ETH_SPI_ETHERNET_W5500
@@ -535,6 +536,12 @@ void ethernet_start()
 void ethernet_start_ap()
 {
     ethernet_settings.type = network_type_ap;
+    ethernet_start();
+}
+
+void ethernet_start_phy()
+{
+    ethernet_settings.type = network_type_phy;
     ethernet_start();
 }
 
