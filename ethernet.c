@@ -81,7 +81,7 @@ static bool got_ip = false;
 static void wifi_deinit_sta();
 static void wifi_init_softap();
 
-static void wifi_event_handler(void *arg, esp_event_base_t event_base,
+static void network_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data)
 {
     if (event_base == WIFI_EVENT)
@@ -251,7 +251,7 @@ void wifi_init_softap(void)
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &network_event_handler, NULL, NULL));
 
     // Set the IP address for the SoftAP interface
     esp_netif_ip_info_t ip_info = {};
@@ -308,8 +308,8 @@ static void wifi_init_sta()
 {
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, &instance_any_id));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL, &instance_got_ip));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &network_event_handler, NULL, &instance_any_id));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &network_event_handler, NULL, &instance_got_ip));
     eth_netif = esp_netif_create_default_wifi_sta();
     assert(eth_netif);
     wifi_config_t wifi_config = {
@@ -398,8 +398,8 @@ static void phy_init()
     ESP_ERROR_CHECK(esp_eth_ioctl(eth_handle, ETH_CMD_S_MAC_ADDR, mac_addr));
     ESP_ERROR_CHECK(esp_netif_attach(eth_netif, esp_eth_new_netif_glue(eth_handle)));
 
-    esp_event_handler_instance_register(ETH_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, &instance_any_id);
-    esp_event_handler_instance_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &wifi_event_handler, NULL, &instance_got_ip);
+    esp_event_handler_instance_register(ETH_EVENT, ESP_EVENT_ANY_ID, &network_event_handler, NULL, &instance_any_id);
+    esp_event_handler_instance_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &network_event_handler, NULL, &instance_got_ip);
 
     esp_netif_set_hostname(eth_netif, ethernet_settings.hostname);
     if (ethernet_settings.phy.dhcp == false)
