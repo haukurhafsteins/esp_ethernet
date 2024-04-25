@@ -62,8 +62,8 @@ typedef struct
 
 } ethernet_settings_t;
 
-static const char *TAG = "ETHERNET";
-static esp_netif_t *eth_netif;
+static const char* TAG = "ETHERNET";
+static esp_netif_t* eth_netif;
 static esp_eth_handle_t eth_handle = NULL;
 static ethernet_settings_t ethernet_settings = {
     .hostname = "esp32",
@@ -81,13 +81,13 @@ static bool got_ip = false;
 static void wifi_deinit_sta();
 static void wifi_init_softap();
 
-static void network_event_handler(void *arg, esp_event_base_t event_base,
-                               int32_t event_id, void *event_data)
+static void network_event_handler(void* arg, esp_event_base_t event_base,
+    int32_t event_id, void* event_data)
 {
     if (event_base == WIFI_EVENT)
     {
-        wifi_event_ap_staconnected_t *event_connected;
-        wifi_event_ap_stadisconnected_t *event_disconnected;
+        wifi_event_ap_staconnected_t* event_connected;
+        wifi_event_ap_stadisconnected_t* event_disconnected;
         switch (event_id)
         {
         case WIFI_EVENT_STA_START:
@@ -117,14 +117,14 @@ static void network_event_handler(void *arg, esp_event_base_t event_base,
             got_ip = true;
             break;
         case WIFI_EVENT_AP_STACONNECTED:
-            event_connected = (wifi_event_ap_staconnected_t *)event_data;
+            event_connected = (wifi_event_ap_staconnected_t*)event_data;
             ESP_LOGI(TAG, "WIFI_EVENT_AP_STACONNECTED: station " MACSTR " join, AID=%d",
-                     MAC2STR(event_connected->mac), event_connected->aid);
+                MAC2STR(event_connected->mac), event_connected->aid);
             break;
         case WIFI_EVENT_AP_STADISCONNECTED:
-            event_disconnected = (wifi_event_ap_stadisconnected_t *)event_data;
+            event_disconnected = (wifi_event_ap_stadisconnected_t*)event_data;
             ESP_LOGI(TAG, "WIFI_EVENT_AP_STADISCONNECTED: station " MACSTR " leave, AID=%d",
-                     MAC2STR(event_disconnected->mac), event_disconnected->aid);
+                MAC2STR(event_disconnected->mac), event_disconnected->aid);
             break;
         default:
             ESP_LOGW(TAG, "Unhandled event_id, Base: WIFI_EVENT, id: %lu", event_id);
@@ -133,13 +133,13 @@ static void network_event_handler(void *arg, esp_event_base_t event_base,
     }
     else if (event_base == IP_EVENT)
     {
-        ip_event_got_ip_t *event;
+        ip_event_got_ip_t* event;
         switch (event_id)
         {
         case IP_EVENT_ETH_GOT_IP:
         case IP_EVENT_STA_GOT_IP:
-            event = (ip_event_got_ip_t *)event_data;
-            const esp_netif_ip_info_t *ip_info = &event->ip_info;
+            event = (ip_event_got_ip_t*)event_data;
+            const esp_netif_ip_info_t* ip_info = &event->ip_info;
             ESP_LOGI(TAG, "IP_EVENT_STA_GOT_IP");
             ESP_LOGI(TAG, "~~~~~~~~~~~");
             ESP_LOGI(TAG, "ETH IP  :" IPSTR, IP2STR(&ip_info->ip));
@@ -155,9 +155,9 @@ static void network_event_handler(void *arg, esp_event_base_t event_base,
     }
     else if (event_base == ETH_EVENT)
     {
-        uint8_t mac_addr[6] = {0};
+        uint8_t mac_addr[6] = { 0 };
         // we can get the ethernet driver handle from event data
-        esp_eth_handle_t handle = *(esp_eth_handle_t *)event_data;
+        esp_eth_handle_t handle = *(esp_eth_handle_t*)event_data;
 
         switch (event_id)
         {
@@ -165,7 +165,7 @@ static void network_event_handler(void *arg, esp_event_base_t event_base,
             esp_eth_ioctl(handle, ETH_CMD_G_MAC_ADDR, mac_addr);
             ESP_LOGI(TAG, "Ethernet Link Up");
             ESP_LOGI(TAG, "Ethernet HW Addr %02x:%02x:%02x:%02x:%02x:%02x",
-                     mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+                mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
             if (ethernet_settings.phy.dhcp == false)
                 got_ip = true;
             break;
@@ -189,7 +189,7 @@ static void network_event_handler(void *arg, esp_event_base_t event_base,
     }
 }
 
-static void set_static_ip(const char *ip, const char *netmask, const char *gateway)
+static void set_static_ip(const char* ip, const char* netmask, const char* gateway)
 {
     esp_netif_ip_info_t ip_info;
     ip_info.ip.addr = ipaddr_addr(ip);
@@ -200,35 +200,35 @@ static void set_static_ip(const char *ip, const char *netmask, const char *gatew
     ESP_LOGI(TAG, "Static IP set: %s, %s, %s", ip, netmask, gateway);
 }
 
-esp_netif_t *ethernet_get_netif()
+esp_netif_t* ethernet_get_netif()
 {
     return eth_netif;
 }
-const char *ethernet_get_ip()
+const char* ethernet_get_ip()
 {
     esp_netif_ip_info_t ip_info;
     if (ESP_OK == esp_netif_get_ip_info(eth_netif, &ip_info))
-        return ip4addr_ntoa((const ip4_addr_t *)&ip_info.ip);
+        return ip4addr_ntoa((const ip4_addr_t*)&ip_info.ip);
     return "";
 }
 
-const char *ethernet_get_hostname()
+const char* ethernet_get_hostname()
 {
-    const char *p;
+    const char* p;
     esp_netif_get_hostname(eth_netif, &p);
     return p;
 }
 
-static const char *ethernet_get_default_hostname()
+static const char* ethernet_get_default_hostname()
 {
     static char default_hostname[64];
     int64_t num = 0x1463785698109456;
-    esp_efuse_mac_get_default((uint8_t *)&num);
+    esp_efuse_mac_get_default((uint8_t*)&num);
     snprintf(default_hostname, 64, "%s-%lld", CONFIG_E_NET_DEFAULT_HOSTNAME, num / 3);
     return default_hostname;
 }
 
-static bool ethernet_valid_hostname(const char *hostname)
+static bool ethernet_valid_hostname(const char* hostname)
 {
     return strlen(hostname) > 0 && strlen(hostname) < MAX_HOSTNAME;
 }
@@ -237,7 +237,7 @@ bool ethernet_got_ip()
 {
     return got_ip;
 }
-bool ethernet_valid_ip(const char *ip)
+bool ethernet_valid_ip(const char* ip)
 {
     struct in_addr in;
     return inet_aton(ip, &in) != 0;
@@ -273,10 +273,10 @@ void wifi_init_softap(void)
             .authmode = WIFI_AUTH_OPEN,
             //.authmode = WIFI_AUTH_WPA2_PSK,
             .sae_pwe_h2e = WPA3_SAE_PWE_BOTH,
-            .pmf_cfg = {.required = true}}};
+            .pmf_cfg = {.required = true}} };
 
     wifi_config.ap.ssid_len = strlen(ethernet_settings.hostname);
-    snprintf((char *)wifi_config.ap.ssid, MAX_SSID, "%s", ethernet_settings.hostname);
+    snprintf((char*)wifi_config.ap.ssid, MAX_SSID, "%s", ethernet_settings.hostname);
     // if (strlen(cfg_password) == 0)
     //{
     // wifi_config.ap.sae_pwe_h2e = WPA3_SAE_PWE_UNSPECIFIED;
@@ -292,7 +292,7 @@ void wifi_init_softap(void)
     ESP_ERROR_CHECK(esp_wifi_start());
 
     ESP_LOGI(TAG, "AP init finished. SSID:%s password:%s channel:%d",
-             ethernet_settings.hostname, ethernet_settings.ap.password, ethernet_settings.ap.channel);
+        ethernet_settings.hostname, ethernet_settings.ap.password, ethernet_settings.ap.channel);
 }
 
 static void wifi_deinit_softap()
@@ -320,18 +320,18 @@ static void wifi_init_sta()
             /* Setting a password implies station will connect to all security modes including WEP/WPA.
              * However these modes are deprecated and not advisable to be used. Incase your Access point
              * doesn't support WPA2, these mode can be enabled by commenting below line */
-            //.threshold.authmode = cfg_auth_mode,
-        },
+             //.threshold.authmode = cfg_auth_mode,
+         },
     };
-    snprintf((char *)wifi_config.sta.ssid, MAX_SSID, "%s", ethernet_settings.wifi.ssid);
-    snprintf((char *)wifi_config.sta.password, MAX_PW, "%s", ethernet_settings.wifi.password);
+    snprintf((char*)wifi_config.sta.ssid, MAX_SSID, "%s", ethernet_settings.wifi.ssid);
+    snprintf((char*)wifi_config.sta.password, MAX_PW, "%s", ethernet_settings.wifi.password);
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     esp_netif_set_hostname(eth_netif, ethernet_settings.hostname);
     if (ethernet_settings.wifi.dhcp == false)
     {
-        ESP_ERROR_CHECK(esp_netif_dhcpc_stop(eth_netif)); 
+        ESP_ERROR_CHECK(esp_netif_dhcpc_stop(eth_netif));
         set_static_ip(ethernet_settings.wifi.ip, ethernet_settings.wifi.netmask, ethernet_settings.wifi.gateway);
     }
     ESP_ERROR_CHECK(esp_wifi_start());
@@ -383,12 +383,12 @@ static void phy_init()
         .mode = 0,
         .clock_speed_hz = 40 * 1000 * 1000,
         .spics_io_num = GPIO_NUM_35,
-        .queue_size = 20};
+        .queue_size = 20 };
 #ifdef CONFIG_ETH_SPI_ETHERNET_W5500
     eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(SPI3_HOST, &spi_devcfg);
     w5500_config.int_gpio_num = GPIO_NUM_40;
-    esp_eth_mac_t *mac_spi = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
-    esp_eth_phy_t *phy_spi = esp_eth_phy_new_w5500(&phy_config);
+    esp_eth_mac_t* mac_spi = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
+    esp_eth_phy_t* phy_spi = esp_eth_phy_new_w5500(&phy_config);
 #endif
     esp_eth_config_t eth_config_spi = ETH_DEFAULT_CONFIG(mac_spi, phy_spi);
     ESP_ERROR_CHECK(esp_eth_driver_install(&eth_config_spi, &eth_handle));
@@ -404,7 +404,7 @@ static void phy_init()
     esp_netif_set_hostname(eth_netif, ethernet_settings.hostname);
     if (ethernet_settings.phy.dhcp == false)
     {
-        ESP_ERROR_CHECK(esp_netif_dhcpc_stop(eth_netif)); 
+        ESP_ERROR_CHECK(esp_netif_dhcpc_stop(eth_netif));
         set_static_ip(ethernet_settings.phy.ip, ethernet_settings.phy.netmask, ethernet_settings.phy.gateway);
     }
 
@@ -456,12 +456,19 @@ static void stop(network_type_t type)
     }
 }
 
-bool ethernet_init(const char *json, bool *save)
+float wifi_get_rssi() 
+{
+    wifi_ap_record_t ap_info;
+    esp_wifi_sta_get_ap_info(&ap_info);
+    return ap_info.rssi;
+}
+
+bool ethernet_init(const char* json, bool* save)
 {
     // Default hostname must be set to unique value. Will be overwritten by settings.
     snprintf(ethernet_settings.hostname, MAX_HOSTNAME, "%s", ethernet_get_default_hostname());
 
-    cJSON *doc = cJSON_Parse(json);
+    cJSON* doc = cJSON_Parse(json);
     if (doc == NULL)
         return false;
 
@@ -472,7 +479,7 @@ bool ethernet_init(const char *json, bool *save)
     //network_type_t prevType = ethernet_settings.type;
     ethernet_settings.type = cJSON_GetInt(doc, "type", ethernet_settings.type, network_type_ap, network_type_end - 1);
 
-    cJSON *wifi = cJSON_GetObjectItemCaseSensitive(doc, "wifi");
+    cJSON* wifi = cJSON_GetObjectItemCaseSensitive(doc, "wifi");
     if (wifi != NULL)
     {
         cJSON_GetString(wifi, "ip", ethernet_settings.wifi.ip, ethernet_settings.wifi.ip, MAX_IP);
@@ -483,14 +490,14 @@ bool ethernet_init(const char *json, bool *save)
         ethernet_settings.wifi.dhcp = cJSON_GetBool(wifi, "dhcp", ethernet_settings.wifi.dhcp);
     }
 
-    cJSON *ap = cJSON_GetObjectItemCaseSensitive(doc, "ap");
+    cJSON* ap = cJSON_GetObjectItemCaseSensitive(doc, "ap");
     if (ap != NULL)
     {
         ethernet_settings.ap.channel = cJSON_GetInt(ap, "channel", (int)ethernet_settings.ap.channel, 1, 13);
         cJSON_GetString(ap, "password", ethernet_settings.ap.password, ethernet_settings.ap.password, MAX_PW);
     }
 
-    cJSON *phy = cJSON_GetObjectItemCaseSensitive(doc, "phy");
+    cJSON* phy = cJSON_GetObjectItemCaseSensitive(doc, "phy");
     if (phy != NULL)
     {
         cJSON_GetString(phy, "ip", ethernet_settings.phy.ip, ethernet_settings.phy.ip, MAX_IP);

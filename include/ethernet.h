@@ -17,6 +17,8 @@ const char* ethernet_get_hostname();
 const char* ethernet_get_ip();
 bool ethernet_valid_ip(const char *ip);
 
+float wifi_get_rssi();
+
 #ifdef __cplusplus
 }
 #endif
