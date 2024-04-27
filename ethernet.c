@@ -458,9 +458,13 @@ static void stop(network_type_t type)
 
 float wifi_get_rssi() 
 {
-    wifi_ap_record_t ap_info;
-    esp_wifi_sta_get_ap_info(&ap_info);
-    return ap_info.rssi;
+    if (ethernet_settings.type == network_type_sta)
+    {
+        wifi_sta_list_t wifi_sta_list;
+        esp_wifi_ap_get_sta_list(&wifi_sta_list);
+        return wifi_sta_list.sta[0].rssi;
+    }
+    return 0;
 }
 
 bool ethernet_init(const char* json, bool* save)
