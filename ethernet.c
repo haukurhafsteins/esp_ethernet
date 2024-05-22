@@ -7,6 +7,7 @@
 #include "freertos/event_groups.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
+#include "esp_netif_sntp.h"
 #include "esp_eth.h"
 #include "esp_mac.h"
 #include "esp_event.h"
@@ -17,50 +18,9 @@
 #include "cJSON_Params.h"
 #include "ethernet.h"
 
-#define MAX_HOSTNAME 32
-#define MAX_IP 20
-#define MAX_SSID 32
-#define MAX_PW 64
-
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT BIT1
 
-typedef enum
-{
-    network_type_ap = 0,
-    network_type_sta,
-    network_type_phy,
-    network_type_end
-} network_type_t;
-
-typedef struct
-{
-    char hostname[MAX_HOSTNAME];
-    network_type_t type;
-    struct
-    {
-        char ip[MAX_IP];
-        char netmask[MAX_IP];
-        char gateway[MAX_IP];
-        char ssid[MAX_SSID];
-        char password[MAX_PW];
-        bool dhcp;
-    } wifi;
-    struct
-    {
-        int channel;
-        char password[MAX_PW];
-    } ap;
-    struct
-    {
-        char ip[MAX_IP];
-        char netmask[MAX_IP];
-        char gateway[MAX_IP];
-        char password[MAX_PW];
-        bool dhcp;
-    } phy;
-
-} ethernet_settings_t;
 
 static const char* TAG = "ETHERNET";
 static esp_netif_t* eth_netif;
@@ -422,6 +382,11 @@ static void phy_deinit()
     eth_handle = NULL;
 }
 
+void time_sync_notification_cb(struct timeval *tv)
+{
+    ESP_LOGI(TAG, "Date is set: %s", tv ? ctime(&tv->tv_sec) : "NULL");
+}
+
 static void start(network_type_t type)
 {
     switch (type)
@@ -437,6 +402,9 @@ static void start(network_type_t type)
         wifi_init_sta();
         break;
     }
+    esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG(ethernet_settings.sntp);
+    config.sync_cb = time_sync_notification_cb;
+    esp_netif_sntp_init(&config);
 }
 
 static void stop(network_type_t type)
@@ -467,6 +435,15 @@ float wifi_get_rssi()
     return 0;
 }
 
+bool ethernet_initialize(ethernet_settings_t* settings)
+{
+    if (settings == NULL)
+        return false;
+
+    ethernet_settings = *settings;
+    return true;
+}
+
 bool ethernet_init(const char* json, bool* save)
 {
     // Default hostname must be set to unique value. Will be overwritten by settings.
@@ -480,6 +457,7 @@ bool ethernet_init(const char* json, bool* save)
         *save = true;
 
     cJSON_GetString(doc, "hostname", ethernet_settings.hostname, ethernet_settings.hostname, MAX_HOSTNAME);
+    cJSON_GetString(doc, "sntp", ethernet_settings.sntp, ethernet_settings.sntp, MAX_SNTP_NAME);
     //network_type_t prevType = ethernet_settings.type;
     ethernet_settings.type = cJSON_GetInt(doc, "type", ethernet_settings.type, network_type_ap, network_type_end - 1);
 
