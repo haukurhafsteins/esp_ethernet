@@ -99,7 +99,7 @@ static void network_event_handler(void *arg, esp_event_base_t event_base,
             break;
         case WIFI_EVENT_AP_START:
             ESP_LOGI(TAG, "WIFI_EVENT_AP_START");
-            on_got_ip(true);
+            got_ip = true; // NOTE: We do not start SNTP in AP mode as it is not connected to the internet
             break;
         case WIFI_EVENT_AP_STACONNECTED:
             event_connected = (wifi_event_ap_staconnected_t *)event_data;
