@@ -111,6 +111,9 @@ static void network_event_handler(void *arg, esp_event_base_t event_base,
             ESP_LOGI(TAG, "WIFI_EVENT_AP_STADISCONNECTED: station " MACSTR " leave, AID=%d",
                      MAC2STR(event_disconnected->mac), event_disconnected->aid);
             break;
+        case WIFI_EVENT_HOME_CHANNEL_CHANGE:
+            ESP_LOGI(TAG, "WIFI_EVENT_HOME_CHANNEL_CHANGE: new home channel %d", *((uint8_t *)event_data));
+            break;
         default:
             ESP_LOGW(TAG, "Unhandled event_id, Base: WIFI_EVENT, id: %lu", event_id);
             break;
