@@ -29,7 +29,7 @@ static ethernet_settings_t ethernet_settings = {
     .type = network_type_ap,
     .wifi = {.ip = "", .netmask = "", .gateway = "", .ssid = "", .password = "", .dhcp = true},
     .ap = {.channel = 2, .password = ""},
-    .phy = {.ip = "", .netmask = "", .gateway = "", .password = "", .dhcp = true},
+    .phy = {.ip = "", .netmask = "", .gateway = "", .password = "", .dhcp = true, .reset_gpio_num = -1, .miso_io_num = -1, .mosi_io_num = -1, .sclk_io_num = -1, .spics_io_num = -1, .int_gpio_num = -1} 
 };
 
 static esp_event_handler_instance_t instance_got_ip;

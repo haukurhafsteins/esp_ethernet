@@ -46,6 +46,12 @@ typedef struct
         char gateway[MAX_IP];
         char password[MAX_PW];
         bool dhcp;
+        int reset_gpio_num;
+        int miso_io_num;
+        int mosi_io_num;
+        int sclk_io_num;
+        int spics_io_num;
+        int int_gpio_num;
     } phy;
 
 } ethernet_settings_t;
