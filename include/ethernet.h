@@ -6,9 +6,9 @@ extern "C"
 {
 #endif
 
-#define MAX_HOSTNAME 32
+#define MAX_HOSTNAME 64
 #define MAX_IP 20
-#define MAX_SSID 32
+#define MAX_SSID 64
 #define MAX_PW 64
 #define MAX_SNTP_NAME 32
 
@@ -38,6 +38,7 @@ typedef struct
     {
         int channel;
         char password[MAX_PW];
+        int max_connections;
     } ap;
     struct
     {
