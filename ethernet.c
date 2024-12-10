@@ -18,9 +18,6 @@
 #include "cJSON_Params.h"
 #include "ethernet.h"
 
-#define WIFI_CONNECTED_BIT BIT0
-#define WIFI_FAIL_BIT BIT1
-
 static const char *TAG = "ETHERNET";
 static esp_netif_t *eth_netif;
 static esp_eth_handle_t eth_handle = NULL;
@@ -28,7 +25,7 @@ static ethernet_settings_t ethernet_settings = {
     .hostname = "esp32",
     .type = network_type_ap,
     .wifi = {.ip = "", .netmask = "", .gateway = "", .ssid = "", .password = "", .dhcp = true},
-    .ap = {.channel = 2, .password = ""},
+    .ap = {.channel = 2, .password = "", .max_connections = 1},
     .phy = {.ip = "", .netmask = "", .gateway = "", .password = "", .dhcp = true, .reset_gpio_num = -1, .miso_io_num = -1, .mosi_io_num = -1, .sclk_io_num = -1, .spics_io_num = -1, .int_gpio_num = -1} 
 };
 
@@ -256,7 +253,7 @@ void wifi_init_softap(void)
     wifi_config_t wifi_config = {
         .ap = {
             .channel = ethernet_settings.ap.channel,
-            .max_connection = 2,
+            .max_connection = ethernet_settings.ap.max_connections,
             //.authmode = WIFI_AUTH_WPA2_WPA3_PSK,
             .authmode = WIFI_AUTH_OPEN,
             //.authmode = WIFI_AUTH_WPA2_PSK,
@@ -496,6 +493,7 @@ bool ethernet_init(const char *json, bool *save)
     {
         ethernet_settings.ap.channel = cJSON_GetInt(ap, "channel", (int)ethernet_settings.ap.channel, 1, 13);
         cJSON_GetString(ap, "password", ethernet_settings.ap.password, ethernet_settings.ap.password, MAX_PW);
+        ethernet_settings.ap.max_connections = cJSON_GetInt(ap, "max_connections", ethernet_settings.ap.max_connections, 1, 5);
     }
 
     cJSON *phy = cJSON_GetObjectItemCaseSensitive(doc, "phy");
