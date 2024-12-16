@@ -25,7 +25,7 @@ static ethernet_settings_t ethernet_settings = {
     .hostname = "esp32",
     .type = network_type_ap,
     .wifi = {.ip = "", .netmask = "", .gateway = "", .ssid = "", .password = "", .dhcp = true},
-    .ap = {.channel = 2, .password = "", .max_connections = 1},
+    .ap = {.channel = 2, .password = "", .max_connections = 2},
     .phy = {.ip = "", .netmask = "", .gateway = "", .password = "", .dhcp = true, .reset_gpio_num = -1, .miso_io_num = -1, .mosi_io_num = -1, .sclk_io_num = -1, .spics_io_num = -1, .int_gpio_num = -1} 
 };
 
