@@ -206,10 +206,10 @@ const char *ethernet_get_hostname()
 
 static const char *ethernet_get_default_hostname()
 {
-    static char default_hostname[64];
+    static char default_hostname[MAX_HOSTNAME];
     int64_t num = 0x1463785698109456;
     esp_efuse_mac_get_default((uint8_t *)&num);
-    snprintf(default_hostname, 64, "%s-%lld", CONFIG_E_NET_DEFAULT_HOSTNAME, num / 3);
+    snprintf(default_hostname, MAX_HOSTNAME, "%s-%lld", CONFIG_E_NET_DEFAULT_HOSTNAME, num / 3);
     return default_hostname;
 }
 
