@@ -26,7 +26,7 @@ static ethernet_settings_t ethernet_settings = {
     .type = network_type_ap,
     .wifi = {.ip = "", .netmask = "", .gateway = "", .ssid = "", .password = "", .dhcp = true},
     .ap = {.channel = 2, .password = "", .max_connections = 2},
-    .phy = {.ip = "", .netmask = "", .gateway = "", .password = "", .dhcp = true, .reset_gpio_num = -1, .miso_io_num = -1, .mosi_io_num = -1, .sclk_io_num = -1, .spics_io_num = -1, .int_gpio_num = -1} 
+    .phy = {.ip = "", .netmask = "", .gateway = "", .password = "", .dhcp = true, .gpio = {.reset = 39, .miso = 38, .mosi = 36, .sclk = 37, .cs = 35, .irq = 40}} 
 };
 
 static esp_event_handler_instance_t instance_got_ip;
@@ -357,8 +357,8 @@ static void phy_init()
     phy_config.reset_gpio_num = GPIO_NUM_39;                // alter the GPIO used for PHY reset
     spi_bus_config_t buscfg = {
         .miso_io_num = GPIO_NUM_38,
-        .mosi_io_num = GPIO_NUM_36,
-        .sclk_io_num = GPIO_NUM_37,
+        .mosi_io_num = GPIO_NUM_48,
+        .sclk_io_num = GPIO_NUM_45,
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
     };
@@ -366,7 +366,7 @@ static void phy_init()
     spi_device_interface_config_t spi_devcfg = {
         .mode = 0,
         .clock_speed_hz = 40 * 1000 * 1000,
-        .spics_io_num = GPIO_NUM_35,
+        .spics_io_num = GPIO_NUM_47,
         .queue_size = 20};
 #ifdef CONFIG_ETH_SPI_ETHERNET_W5500
     eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(SPI3_HOST, &spi_devcfg);
@@ -451,7 +451,7 @@ float wifi_get_rssi()
     return 0;
 }
 
-bool ethernet_initialize(ethernet_settings_t *settings)
+bool ethernet_config(const ethernet_settings_t *settings)
 {
     if (settings == NULL)
         return false;
