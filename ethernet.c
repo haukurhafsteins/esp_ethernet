@@ -26,8 +26,7 @@ static ethernet_settings_t ethernet_settings = {
     .type = network_type_ap,
     .wifi = {.ip = "", .netmask = "", .gateway = "", .ssid = "", .password = "", .dhcp = true},
     .ap = {.channel = 2, .password = "", .max_connections = 2},
-    .phy = {.ip = "", .netmask = "", .gateway = "", .password = "", .dhcp = true, .gpio = {.reset = 39, .miso = 38, .mosi = 36, .sclk = 37, .cs = 35, .irq = 40}} 
-};
+    .phy = {.ip = "", .netmask = "", .gateway = "", .password = "", .dhcp = true, .gpio = {.reset = 39, .miso = 38, .mosi = 36, .sclk = 37, .cs = 35, .irq = 40}}};
 
 static esp_event_handler_instance_t instance_got_ip;
 static esp_event_handler_instance_t instance_any_id;
@@ -152,7 +151,14 @@ static void network_event_handler(void *arg, esp_event_base_t event_base,
             ESP_LOGI(TAG, "Ethernet HW Addr %02x:%02x:%02x:%02x:%02x:%02x",
                      mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
             if (ethernet_settings.phy.dhcp == false)
+            {
+                ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
+                const esp_netif_ip_info_t *ip_info = &event->ip_info;
                 on_got_ip(true);
+                ESP_LOGI(TAG, "ETH IP  :" IPSTR, IP2STR(&ip_info->ip));
+                ESP_LOGI(TAG, "ETH MASK:" IPSTR, IP2STR(&ip_info->netmask));
+                ESP_LOGI(TAG, "ETH GW  :" IPSTR, IP2STR(&ip_info->gw));
+            }
             break;
         case ETHERNET_EVENT_DISCONNECTED:
             ESP_LOGI(TAG, "Ethernet Link Down");
