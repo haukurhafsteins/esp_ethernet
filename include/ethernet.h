@@ -89,10 +89,6 @@ extern "C"
     /// @return True if an IP address has been obtained, false otherwise
     bool ethernet_got_ip();
 
-    /// @brief Check if ethernet link is active (cable connected and active).
-    /// @return true if link is active.
-    bool ethernet_got_link();
-
     /// @brief Get the network interface
     esp_netif_t *ethernet_get_netif();
 

@@ -32,7 +32,6 @@ static esp_event_handler_instance_t instance_got_ip;
 static esp_event_handler_instance_t instance_any_id;
 static bool initialized = false;
 static bool got_ip = false;
-static bool got_link = false;
 
 static void wifi_deinit_sta();
 static void wifi_init_softap();
@@ -148,7 +147,6 @@ static void network_event_handler(void *arg, esp_event_base_t event_base,
         {
         case ETHERNET_EVENT_CONNECTED:
             esp_eth_ioctl(handle, ETH_CMD_G_MAC_ADDR, mac_addr);
-            got_link = true;
             ESP_LOGI(TAG, "Ethernet Link Up");
             ESP_LOGI(TAG, "Ethernet HW Addr %02x:%02x:%02x:%02x:%02x:%02x",
                      mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
@@ -234,10 +232,6 @@ bool ethernet_valid_ip(const char *ip)
 {
     struct in_addr in;
     return inet_aton(ip, &in) != 0;
-}
-bool ethernet_got_link()
-{
-    return got_link;
 }
 
 void wifi_init_softap(void)
