@@ -385,9 +385,9 @@ static void phy_init()
     w5500_config.int_gpio_num = GPIO_NUM_40;
     esp_eth_mac_t *mac_spi = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
     esp_eth_phy_t *phy_spi = esp_eth_phy_new_w5500(&phy_config);
-#endif
     esp_eth_config_t eth_config_spi = ETH_DEFAULT_CONFIG(mac_spi, phy_spi);
     ESP_ERROR_CHECK(esp_eth_driver_install(&eth_config_spi, &eth_handle));
+    #endif
 
     uint8_t mac_addr[6];
     esp_read_mac(mac_addr, ESP_MAC_ETH);
