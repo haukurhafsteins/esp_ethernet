@@ -85,6 +85,8 @@ extern "C"
     /// @brief Stop the ethernet module
     void ethernet_stop();
 
+    bool ethernet_got_eth_link();
+
     /// @brief Check if the ethernet module has got an IP address
     /// @return True if an IP address has been obtained, false otherwise
     bool ethernet_got_ip();

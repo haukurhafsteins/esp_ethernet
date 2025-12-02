@@ -32,6 +32,7 @@ static esp_event_handler_instance_t instance_got_ip;
 static esp_event_handler_instance_t instance_any_id;
 static bool initialized = false;
 static bool got_ip = false;
+static bool got_eth_link = false;
 
 static void wifi_deinit_sta();
 static void wifi_init_softap();
@@ -146,6 +147,7 @@ static void network_event_handler(void *arg, esp_event_base_t event_base,
         switch (event_id)
         {
         case ETHERNET_EVENT_CONNECTED:
+            got_eth_link = true;
             esp_eth_ioctl(handle, ETH_CMD_G_MAC_ADDR, mac_addr);
             ESP_LOGI(TAG, "Ethernet Link Up");
             ESP_LOGI(TAG, "Ethernet HW Addr %02x:%02x:%02x:%02x:%02x:%02x",
@@ -161,6 +163,7 @@ static void network_event_handler(void *arg, esp_event_base_t event_base,
             }
             break;
         case ETHERNET_EVENT_DISCONNECTED:
+            got_eth_link = false;
             ESP_LOGI(TAG, "Ethernet Link Down");
             break;
         case ETHERNET_EVENT_START:
@@ -222,6 +225,11 @@ static const char *ethernet_get_default_hostname()
 static bool ethernet_valid_hostname(const char *hostname)
 {
     return strlen(hostname) > 0 && strlen(hostname) < MAX_HOSTNAME;
+}
+
+bool ethernet_got_eth_link()
+{
+    return false;
 }
 
 bool ethernet_got_ip()
