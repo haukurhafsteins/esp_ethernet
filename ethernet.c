@@ -20,6 +20,7 @@
 
 static const char *TAG = "ETHERNET";
 static esp_netif_t *eth_netif;
+static esp_netif_t *wifi_netif;
 static esp_eth_handle_t eth_handle = NULL;
 static ethernet_settings_t ethernet_settings = {
     .hostname = "esp32",
@@ -126,11 +127,9 @@ static void network_event_handler(void *arg, esp_event_base_t event_base,
             event = (ip_event_got_ip_t *)event_data;
             const esp_netif_ip_info_t *ip_info = &event->ip_info;
             ESP_LOGI(TAG, "IP_EVENT_STA_GOT_IP");
-            ESP_LOGI(TAG, "~~~~~~~~~~~");
             ESP_LOGI(TAG, "ETH IP  :" IPSTR, IP2STR(&ip_info->ip));
             ESP_LOGI(TAG, "ETH MASK:" IPSTR, IP2STR(&ip_info->netmask));
             ESP_LOGI(TAG, "ETH GW  :" IPSTR, IP2STR(&ip_info->gw));
-            ESP_LOGI(TAG, "~~~~~~~~~~~");
             on_got_ip(true);
             break;
         default:
@@ -157,6 +156,7 @@ static void network_event_handler(void *arg, esp_event_base_t event_base,
                 ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
                 const esp_netif_ip_info_t *ip_info = &event->ip_info;
                 on_got_ip(true);
+                ESP_LOGI(TAG, "ETHERNET_EVENT_CONNECTED");
                 ESP_LOGI(TAG, "ETH IP  :" IPSTR, IP2STR(&ip_info->ip));
                 ESP_LOGI(TAG, "ETH MASK:" IPSTR, IP2STR(&ip_info->netmask));
                 ESP_LOGI(TAG, "ETH GW  :" IPSTR, IP2STR(&ip_info->gw));
@@ -183,33 +183,40 @@ static void network_event_handler(void *arg, esp_event_base_t event_base,
     }
 }
 
-static void set_static_ip(const char *ip, const char *netmask, const char *gateway)
+static void set_static_ip(esp_netif_t *netif, const char *ip, const char *netmask, const char *gateway)
 {
     esp_netif_ip_info_t ip_info;
     ip_info.ip.addr = ipaddr_addr(ip);
     ip_info.gw.addr = ipaddr_addr(gateway);
     ip_info.netmask.addr = ipaddr_addr(netmask);
 
-    ESP_ERROR_CHECK(esp_netif_set_ip_info(eth_netif, &ip_info));
+    ESP_ERROR_CHECK(esp_netif_set_ip_info(netif, &ip_info));
     ESP_LOGI(TAG, "Static IP set: %s, %s, %s", ip, netmask, gateway);
 }
 
-esp_netif_t *ethernet_get_netif()
-{
-    return eth_netif;
-}
 const char *ethernet_get_ip()
 {
     esp_netif_ip_info_t ip_info;
-    if (ESP_OK == esp_netif_get_ip_info(eth_netif, &ip_info))
-        return ip4addr_ntoa((const ip4_addr_t *)&ip_info.ip);
+    if (ethernet_settings.type == network_type_ap)
+    {
+        if (ESP_OK == esp_netif_get_ip_info(wifi_netif, &ip_info))
+            return ip4addr_ntoa((const ip4_addr_t *)&ip_info.ip);
+    }
+    else if (ethernet_settings.type == network_type_phy)
+    {
+        if (ESP_OK == esp_netif_get_ip_info(eth_netif, &ip_info))
+            return ip4addr_ntoa((const ip4_addr_t *)&ip_info.ip);
+    }
     return "";
 }
 
 const char *ethernet_get_hostname()
 {
     const char *p;
-    esp_netif_get_hostname(eth_netif, &p);
+    if (ethernet_settings.type == network_type_ap)
+        esp_netif_get_hostname(wifi_netif, &p);
+    else if (ethernet_settings.type == network_type_phy)
+        esp_netif_get_hostname(eth_netif, &p);
     return p;
 }
 
@@ -244,8 +251,8 @@ bool ethernet_valid_ip(const char *ip)
 
 void wifi_init_softap(void)
 {
-    eth_netif = esp_netif_create_default_wifi_ap();
-    assert(eth_netif);
+    wifi_netif = esp_netif_create_default_wifi_ap();
+    assert(wifi_netif);
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
@@ -258,12 +265,11 @@ void wifi_init_softap(void)
     IP4_ADDR(&ip_info.gw, 192, 168, 4, 1);        // Set the gateway IP address (same as the SoftAP IP)
     IP4_ADDR(&ip_info.netmask, 255, 255, 255, 0); // Set the subnet mask (e.g., 255.255.255.0)
 
-    ESP_ERROR_CHECK(esp_netif_dhcps_stop(eth_netif));
-    ESP_ERROR_CHECK(esp_netif_set_ip_info(eth_netif, &ip_info));
+    ESP_ERROR_CHECK(esp_netif_dhcps_stop(wifi_netif));
+    ESP_ERROR_CHECK(esp_netif_set_ip_info(wifi_netif, &ip_info));
 
     // Start the DHCP server for the SoftAP
-    ESP_ERROR_CHECK(esp_netif_dhcps_start(eth_netif));
-
+    ESP_ERROR_CHECK(esp_netif_dhcps_start(wifi_netif));
     wifi_config_t wifi_config = {
         .ap = {
             .channel = ethernet_settings.ap.channel,
@@ -297,8 +303,8 @@ void wifi_init_softap(void)
 static void wifi_deinit_softap()
 {
     ESP_ERROR_CHECK(esp_wifi_stop());
-    ESP_ERROR_CHECK(esp_netif_dhcps_stop(eth_netif));
-    esp_netif_destroy_default_wifi(eth_netif);
+    ESP_ERROR_CHECK(esp_netif_dhcps_stop(wifi_netif));
+    esp_netif_destroy_default_wifi(wifi_netif);
     ESP_ERROR_CHECK(esp_wifi_deinit());
     esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, NULL);
 }
@@ -309,8 +315,8 @@ static void wifi_init_sta()
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &network_event_handler, NULL, &instance_any_id));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &network_event_handler, NULL, &instance_got_ip));
-    eth_netif = esp_netif_create_default_wifi_sta();
-    assert(eth_netif);
+    wifi_netif = esp_netif_create_default_wifi_sta();
+    assert(wifi_netif);
     wifi_config_t wifi_config = {
         .sta = {
             .scan_method = WIFI_ALL_CHANNEL_SCAN,
@@ -327,11 +333,11 @@ static void wifi_init_sta()
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-    esp_netif_set_hostname(eth_netif, ethernet_settings.hostname);
+    esp_netif_set_hostname(wifi_netif, ethernet_settings.hostname);
     if (ethernet_settings.wifi.dhcp == false)
     {
-        ESP_ERROR_CHECK(esp_netif_dhcpc_stop(eth_netif));
-        set_static_ip(ethernet_settings.wifi.ip, ethernet_settings.wifi.netmask, ethernet_settings.wifi.gateway);
+        ESP_ERROR_CHECK(esp_netif_dhcpc_stop(wifi_netif));
+        set_static_ip(wifi_netif, ethernet_settings.wifi.ip, ethernet_settings.wifi.netmask, ethernet_settings.wifi.gateway);
     }
     ESP_ERROR_CHECK(esp_wifi_start());
 }
@@ -339,7 +345,7 @@ static void wifi_init_sta()
 static void wifi_deinit_sta()
 {
     ESP_ERROR_CHECK(esp_wifi_stop());
-    esp_netif_destroy_default_wifi(eth_netif);
+    esp_netif_destroy_default_wifi(wifi_netif);
     ESP_ERROR_CHECK(esp_wifi_deinit());
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, instance_got_ip));
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, instance_any_id));
@@ -389,7 +395,7 @@ static void phy_init()
     esp_eth_phy_t *phy_spi = esp_eth_phy_new_w5500(&phy_config);
     esp_eth_config_t eth_config_spi = ETH_DEFAULT_CONFIG(mac_spi, phy_spi);
     ESP_ERROR_CHECK(esp_eth_driver_install(&eth_config_spi, &eth_handle));
-    #endif
+#endif
 
     uint8_t mac_addr[6];
     esp_read_mac(mac_addr, ESP_MAC_ETH);
@@ -403,7 +409,7 @@ static void phy_init()
     if (ethernet_settings.phy.dhcp == false)
     {
         ESP_ERROR_CHECK(esp_netif_dhcpc_stop(eth_netif));
-        set_static_ip(ethernet_settings.phy.ip, ethernet_settings.phy.netmask, ethernet_settings.phy.gateway);
+        set_static_ip(eth_netif, ethernet_settings.phy.ip, ethernet_settings.phy.netmask, ethernet_settings.phy.gateway);
     }
 
     esp_eth_start(eth_handle);

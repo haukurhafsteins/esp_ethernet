@@ -91,9 +91,6 @@ extern "C"
     /// @return True if an IP address has been obtained, false otherwise
     bool ethernet_got_ip();
 
-    /// @brief Get the network interface
-    esp_netif_t *ethernet_get_netif();
-
     /// @brief Get the hostname
     /// @return The hostname
     const char *ethernet_get_hostname();
