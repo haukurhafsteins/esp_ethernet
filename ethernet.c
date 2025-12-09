@@ -236,7 +236,7 @@ static bool ethernet_valid_hostname(const char *hostname)
 
 bool ethernet_got_eth_link()
 {
-    return false;
+    return got_eth_link;
 }
 
 bool ethernet_got_ip()
