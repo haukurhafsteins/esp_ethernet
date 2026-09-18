@@ -14,8 +14,9 @@ extern "C"
     typedef enum
     {
         network_type_ap = 0,
-        network_type_sta,
-        network_type_phy,
+        // 1 was WiFi station mode, removed before release (MASI-AIR design-decisions.md 9.11).
+        // The value stays unassigned so stored network.json files keep their meaning.
+        network_type_phy = 2,
         network_type_end
     } network_type_t;
 
@@ -24,15 +25,6 @@ extern "C"
         char hostname[MAX_HOSTNAME];
         char sntp[MAX_SNTP_NAME];
         network_type_t type;
-        struct
-        {
-            char ip[MAX_IP];
-            char netmask[MAX_IP];
-            char gateway[MAX_IP];
-            char ssid[MAX_SSID];
-            char password[MAX_PW];
-            bool dhcp;
-        } wifi;
         struct
         {
             int channel;
@@ -78,7 +70,7 @@ extern "C"
     /// the settings in the configuration.
     void ethernet_start_ap();
 
-    /// @brief Start the ethernet module in STA mode. Overrides
+    /// @brief Start the ethernet module on the wired PHY. Overrides
     /// the settings in the configuration.
     void ethernet_start_phy();
 
@@ -103,10 +95,6 @@ extern "C"
     /// @param ip The address to check
     /// @return True if the address is valid, false otherwise
     bool ethernet_valid_ip(const char *ip);
-
-    /// @brief Get the RSSI of the WiFi connection
-    /// @return The RSSI in % or 0 if not connected
-    float wifi_get_rssi();
 
 #ifdef __cplusplus
 }

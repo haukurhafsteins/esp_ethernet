@@ -25,7 +25,6 @@ static esp_eth_handle_t eth_handle = NULL;
 static ethernet_settings_t ethernet_settings = {
     .hostname = "esp32",
     .type = network_type_ap,
-    .wifi = {.ip = "", .netmask = "", .gateway = "", .ssid = "", .password = "", .dhcp = true},
     .ap = {.channel = 2, .password = "", .max_connections = 2},
     .phy = {.ip = "", .netmask = "", .gateway = "", .password = "", .dhcp = true, .gpio = {.reset = 39, .miso = 38, .mosi = 36, .sclk = 37, .cs = 35, .irq = 40}}};
 
@@ -35,7 +34,6 @@ static bool initialized = false;
 static bool got_ip = false;
 static bool got_eth_link = false;
 
-static void wifi_deinit_sta();
 static void wifi_init_softap();
 
 void time_sync_notification_cb(struct timeval *tv)
@@ -54,7 +52,7 @@ static void on_got_ip(bool ip_set)
         config.server_from_dhcp = true;           // accept the NTP offers from DHCP server
         config.renew_servers_after_new_IP = true; // let esp-netif update the configured SNTP server(s) after receiving the DHCP lease
         config.index_of_first_server = 1;         // updates from server num 1, leaving server 0 (from DHCP) intact
-        config.ip_event_to_renew = IP_EVENT_STA_GOT_IP;
+        config.ip_event_to_renew = IP_EVENT_ETH_GOT_IP;
         config.sync_cb = time_sync_notification_cb;
         esp_netif_sntp_init(&config);
     }
@@ -73,25 +71,6 @@ static void network_event_handler(void *arg, esp_event_base_t event_base,
         wifi_event_ap_stadisconnected_t *event_disconnected;
         switch (event_id)
         {
-        case WIFI_EVENT_STA_START:
-            esp_wifi_connect();
-            ESP_LOGI(TAG, "WIFI_EVENT_STA_START");
-            break;
-        case WIFI_EVENT_STA_STOP:
-            ESP_LOGI(TAG, "WIFI_EVENT_STA_STOP");
-            break;
-        case WIFI_EVENT_STA_CONNECTED:
-            ESP_LOGI(TAG, "WIFI_EVENT_STA_CONNECTED");
-            if (ethernet_settings.wifi.dhcp == false)
-                on_got_ip(true);
-            break;
-        case WIFI_EVENT_STA_DISCONNECTED:
-            ESP_LOGI(TAG, "WIFI_EVENT_STA_DISCONNECTED");
-            if (ethernet_settings.wifi.dhcp == true)
-                on_got_ip(false);
-            esp_wifi_connect();
-            break;
-
         case WIFI_EVENT_AP_STOP:
             ESP_LOGI(TAG, "WIFI_EVENT_AP_STOP");
             break;
@@ -123,10 +102,9 @@ static void network_event_handler(void *arg, esp_event_base_t event_base,
         switch (event_id)
         {
         case IP_EVENT_ETH_GOT_IP:
-        case IP_EVENT_STA_GOT_IP:
             event = (ip_event_got_ip_t *)event_data;
             const esp_netif_ip_info_t *ip_info = &event->ip_info;
-            ESP_LOGI(TAG, "IP_EVENT_STA_GOT_IP");
+            ESP_LOGI(TAG, "IP_EVENT_ETH_GOT_IP");
             ESP_LOGI(TAG, "ETH IP  :" IPSTR, IP2STR(&ip_info->ip));
             ESP_LOGI(TAG, "ETH MASK:" IPSTR, IP2STR(&ip_info->netmask));
             ESP_LOGI(TAG, "ETH GW  :" IPSTR, IP2STR(&ip_info->gw));
@@ -309,48 +287,6 @@ static void wifi_deinit_softap()
     esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, NULL);
 }
 
-static void wifi_init_sta()
-{
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &network_event_handler, NULL, &instance_any_id));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &network_event_handler, NULL, &instance_got_ip));
-    wifi_netif = esp_netif_create_default_wifi_sta();
-    assert(wifi_netif);
-    wifi_config_t wifi_config = {
-        .sta = {
-            .scan_method = WIFI_ALL_CHANNEL_SCAN,
-            .threshold.rssi = -127,
-            .threshold.authmode = WIFI_AUTH_OPEN,
-            /* Setting a password implies station will connect to all security modes including WEP/WPA.
-             * However these modes are deprecated and not advisable to be used. Incase your Access point
-             * doesn't support WPA2, these mode can be enabled by commenting below line */
-            //.threshold.authmode = cfg_auth_mode,
-        },
-    };
-    snprintf((char *)wifi_config.sta.ssid, MAX_SSID, "%s", ethernet_settings.wifi.ssid);
-    snprintf((char *)wifi_config.sta.password, MAX_PW, "%s", ethernet_settings.wifi.password);
-
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-    esp_netif_set_hostname(wifi_netif, ethernet_settings.hostname);
-    if (ethernet_settings.wifi.dhcp == false)
-    {
-        ESP_ERROR_CHECK(esp_netif_dhcpc_stop(wifi_netif));
-        set_static_ip(wifi_netif, ethernet_settings.wifi.ip, ethernet_settings.wifi.netmask, ethernet_settings.wifi.gateway);
-    }
-    ESP_ERROR_CHECK(esp_wifi_start());
-}
-
-static void wifi_deinit_sta()
-{
-    ESP_ERROR_CHECK(esp_wifi_stop());
-    esp_netif_destroy_default_wifi(wifi_netif);
-    ESP_ERROR_CHECK(esp_wifi_deinit());
-    ESP_ERROR_CHECK(esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, instance_got_ip));
-    ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, instance_any_id));
-}
-
 static void phy_init()
 {
 #ifdef CONFIG_ETH_ENABLED
@@ -436,9 +372,9 @@ static void start(network_type_t type)
     case network_type_ap:
         wifi_init_softap();
         break;
-    case network_type_sta:
     default:
-        wifi_init_sta();
+        // Unknown or retired type (WiFi station was 1): this is a wired product.
+        phy_init();
         break;
     }
 }
@@ -453,22 +389,10 @@ static void stop(network_type_t type)
     case network_type_ap:
         wifi_deinit_softap();
         break;
-    case network_type_sta:
     default:
-        wifi_deinit_sta();
+        phy_deinit();
         break;
     }
-}
-
-float wifi_get_rssi()
-{
-    if (ethernet_settings.type == network_type_sta)
-    {
-        wifi_sta_list_t wifi_sta_list;
-        esp_wifi_ap_get_sta_list(&wifi_sta_list);
-        return wifi_sta_list.sta[0].rssi;
-    }
-    return 0;
 }
 
 bool ethernet_config(const ethernet_settings_t *settings)
@@ -497,17 +421,6 @@ bool ethernet_init(const char *json, bool *save)
     // network_type_t prevType = ethernet_settings.type;
     ethernet_settings.type = cJSON_GetInt(doc, "type", ethernet_settings.type, network_type_ap, network_type_end - 1);
 
-    cJSON *wifi = cJSON_GetObjectItemCaseSensitive(doc, "wifi");
-    if (wifi != NULL)
-    {
-        cJSON_GetString(wifi, "ip", ethernet_settings.wifi.ip, ethernet_settings.wifi.ip, MAX_IP);
-        cJSON_GetString(wifi, "netmask", ethernet_settings.wifi.netmask, ethernet_settings.wifi.netmask, MAX_IP);
-        cJSON_GetString(wifi, "gateway", ethernet_settings.wifi.gateway, ethernet_settings.wifi.gateway, MAX_IP);
-        cJSON_GetString(wifi, "ssid", ethernet_settings.wifi.ssid, ethernet_settings.wifi.ssid, MAX_SSID);
-        cJSON_GetString(wifi, "password", ethernet_settings.wifi.password, ethernet_settings.wifi.password, MAX_PW);
-        ethernet_settings.wifi.dhcp = cJSON_GetBool(wifi, "dhcp", ethernet_settings.wifi.dhcp);
-    }
-
     cJSON *ap = cJSON_GetObjectItemCaseSensitive(doc, "ap");
     if (ap != NULL)
     {
@@ -532,12 +445,6 @@ bool ethernet_init(const char *json, bool *save)
     {
         snprintf(ethernet_settings.hostname, MAX_HOSTNAME, "%s", ethernet_get_default_hostname());
         ESP_LOGW(TAG, "Invalid hostname. Using default: %s", ethernet_settings.hostname);
-    }
-
-    if (ethernet_settings.type == network_type_sta && ethernet_settings.wifi.ssid[0] == '\0')
-    {
-        ESP_LOGW(TAG, "No SSID set. Starting AP mode.");
-        ethernet_settings.type = network_type_ap;
     }
 
     // TODO: Check if type changed and restart network
