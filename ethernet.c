@@ -17,6 +17,7 @@
 #include "cJSON.h"
 #include "cJSON_Params.h"
 #include "ethernet.h"
+#include "eth_spi_dma.h"
 
 static const char *TAG = "ETHERNET";
 static esp_netif_t *eth_netif;
@@ -334,6 +335,19 @@ static void phy_init()
 #ifdef CONFIG_ETH_SPI_ETHERNET_W5500
     eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(SPI3_HOST, &spi_devcfg);
     w5500_config.int_gpio_num = GPIO_NUM_40;
+    // Transmit frames out of one preallocated DMA buffer. The stock SPI driver passes the
+    // lwIP payload straight through, so the SPI master has to allocate a DMA bounce buffer
+    // from internal RAM on every frame; under page load that allocation fails against a
+    // fragmented heap and frames drop (HMO-88). See eth_spi_dma.c.
+    eth_spi_dma_config_t w5500_spi_dma_config = {
+        .spi_host_id = SPI3_HOST,
+        .spi_devcfg = &spi_devcfg,
+    };
+    w5500_config.custom_spi_driver.config = &w5500_spi_dma_config;
+    w5500_config.custom_spi_driver.init = eth_spi_dma_init;
+    w5500_config.custom_spi_driver.deinit = eth_spi_dma_deinit;
+    w5500_config.custom_spi_driver.read = eth_spi_dma_read;
+    w5500_config.custom_spi_driver.write = eth_spi_dma_write;
     esp_eth_mac_t *mac_spi = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
     esp_eth_phy_t *phy_spi = esp_eth_phy_new_w5500(&phy_config);
     esp_eth_config_t eth_config_spi = ETH_DEFAULT_CONFIG(mac_spi, phy_spi);
