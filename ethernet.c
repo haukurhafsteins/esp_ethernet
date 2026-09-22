@@ -131,13 +131,20 @@ static void network_event_handler(void *arg, esp_event_base_t event_base,
                      mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
             if (ethernet_settings.phy.dhcp == false)
             {
-                ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
-                const esp_netif_ip_info_t *ip_info = &event->ip_info;
+                // event_data on ETH_EVENT is the esp_eth_handle_t, not an ip_event_got_ip_t.
+                // Casting it and reading ip_info walked ~20 bytes off the end of a 4-byte
+                // object and printed whatever followed, which is where the nonsense
+                // addresses in the boot log came from. With a static IP the addresses to
+                // report are the ones already configured on the netif.
+                esp_netif_ip_info_t ip_info;
                 on_got_ip(true);
                 ESP_LOGI(TAG, "ETHERNET_EVENT_CONNECTED");
-                ESP_LOGI(TAG, "ETH IP  :" IPSTR, IP2STR(&ip_info->ip));
-                ESP_LOGI(TAG, "ETH MASK:" IPSTR, IP2STR(&ip_info->netmask));
-                ESP_LOGI(TAG, "ETH GW  :" IPSTR, IP2STR(&ip_info->gw));
+                if (esp_netif_get_ip_info(eth_netif, &ip_info) == ESP_OK)
+                {
+                    ESP_LOGI(TAG, "ETH IP  :" IPSTR, IP2STR(&ip_info.ip));
+                    ESP_LOGI(TAG, "ETH MASK:" IPSTR, IP2STR(&ip_info.netmask));
+                    ESP_LOGI(TAG, "ETH GW  :" IPSTR, IP2STR(&ip_info.gw));
+                }
             }
             break;
         case ETHERNET_EVENT_DISCONNECTED:
