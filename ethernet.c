@@ -27,7 +27,7 @@ static ethernet_settings_t ethernet_settings = {
     .hostname = "esp32",
     .type = network_type_ap,
     .ap = {.channel = 2, .password = "", .max_connections = 2},
-    .phy = {.ip = "", .netmask = "", .gateway = "", .password = "", .dhcp = true, .gpio = {.reset = 39, .miso = 38, .mosi = 36, .sclk = 37, .cs = 35, .irq = 40}}};
+    .phy = {.ip = "", .netmask = "", .gateway = "", .password = "", .dhcp = true}};
 
 static esp_event_handler_instance_t instance_got_ip;
 static esp_event_handler_instance_t instance_any_id;
@@ -318,11 +318,14 @@ static void phy_init()
     mac_config.rx_task_stack_size = 3 * 1024;               // Is default 2048 but got stack overflow
     eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG(); // apply default PHY configuration
     phy_config.phy_addr = 0;                                // alter the PHY address according to your board design
-    phy_config.reset_gpio_num = GPIO_NUM_39;                // alter the GPIO used for PHY reset
+    // The W5500 wiring is fixed by the board, so the pins are build-time Kconfig values
+    // (CONFIG_E_NET_W5500_*, defaults in Kconfig.projbuild) rather than runtime settings
+    // or literals scattered here (HMO-93). This is the only place they are consumed.
+    phy_config.reset_gpio_num = CONFIG_E_NET_W5500_RESET_GPIO;
     spi_bus_config_t buscfg = {
-        .miso_io_num = GPIO_NUM_38,
-        .mosi_io_num = GPIO_NUM_48,
-        .sclk_io_num = GPIO_NUM_45,
+        .miso_io_num = CONFIG_E_NET_W5500_SPI_MISO_GPIO,
+        .mosi_io_num = CONFIG_E_NET_W5500_SPI_MOSI_GPIO,
+        .sclk_io_num = CONFIG_E_NET_W5500_SPI_SCLK_GPIO,
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
     };
@@ -330,11 +333,11 @@ static void phy_init()
     spi_device_interface_config_t spi_devcfg = {
         .mode = 0,
         .clock_speed_hz = 40 * 1000 * 1000,
-        .spics_io_num = GPIO_NUM_47,
+        .spics_io_num = CONFIG_E_NET_W5500_SPI_CS_GPIO,
         .queue_size = 20};
 #ifdef CONFIG_ETH_SPI_ETHERNET_W5500
     eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(SPI3_HOST, &spi_devcfg);
-    w5500_config.int_gpio_num = GPIO_NUM_40;
+    w5500_config.int_gpio_num = CONFIG_E_NET_W5500_INT_GPIO;
     // Transmit frames out of one preallocated DMA buffer. The stock SPI driver passes the
     // lwIP payload straight through, so the SPI master has to allocate a DMA bounce buffer
     // from internal RAM on every frame; under page load that allocation fails against a

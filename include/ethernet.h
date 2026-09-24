@@ -38,15 +38,8 @@ extern "C"
             char gateway[MAX_IP];
             char password[MAX_PW];
             bool dhcp;
-            struct
-            {
-                int reset;
-                int miso;
-                int mosi;
-                int sclk;
-                int cs;
-                int irq;
-            } gpio;
+            // The W5500 pins are not runtime settings: they are fixed by the board and
+            // come from Kconfig (CONFIG_E_NET_W5500_*), see Kconfig.projbuild (HMO-93).
         } phy;
 
     } ethernet_settings_t;

@@ -7,6 +7,11 @@ menu "esp_ethernet Configuration"
     config E_NET_GPIO_RANGE_MAX
         int
         default 33 if IDF_TARGET_ESP32
+        default 48 if IDF_TARGET_ESP32S3
+        default 21 if IDF_TARGET_ESP32C3
+        default 26 if IDF_TARGET_ESP32C6
+        default 46 if IDF_TARGET_ESP32S2
+        default 48
 
     config E_NET_DEFAULT_HOSTNAME
         string "Default Hostname"
@@ -14,6 +19,47 @@ menu "esp_ethernet Configuration"
         help
             The default hostname to use if not set by ethnernet_init function.
             The name will get a postfix with a unique number.
+
+    menu "W5500 SPI Ethernet wiring"
+        # The W5500 pins are fixed by the board layout, so they are build-time
+        # configuration, not runtime settings (HMO-93). The defaults are the
+        # JBT Marel MASI-AIR pin map; a different board overrides them in its
+        # sdkconfig.defaults. ethernet.c reads only these CONFIG_ values.
+
+        config E_NET_W5500_RESET_GPIO
+            int "W5500 reset GPIO"
+            range -1 E_NET_GPIO_RANGE_MAX
+            default 39
+            help
+                GPIO driving the W5500 RSTn pin. -1 disables the hardware reset.
+
+        config E_NET_W5500_INT_GPIO
+            int "W5500 interrupt GPIO"
+            range -1 E_NET_GPIO_RANGE_MAX
+            default 40
+            help
+                GPIO connected to the W5500 INTn pin. -1 selects polling.
+
+        config E_NET_W5500_SPI_MISO_GPIO
+            int "SPI MISO GPIO"
+            range E_NET_GPIO_RANGE_MIN E_NET_GPIO_RANGE_MAX
+            default 38
+
+        config E_NET_W5500_SPI_MOSI_GPIO
+            int "SPI MOSI GPIO"
+            range E_NET_GPIO_RANGE_MIN E_NET_GPIO_RANGE_MAX
+            default 48
+
+        config E_NET_W5500_SPI_SCLK_GPIO
+            int "SPI SCLK GPIO"
+            range E_NET_GPIO_RANGE_MIN E_NET_GPIO_RANGE_MAX
+            default 45
+
+        config E_NET_W5500_SPI_CS_GPIO
+            int "SPI CS GPIO"
+            range E_NET_GPIO_RANGE_MIN E_NET_GPIO_RANGE_MAX
+            default 47
+    endmenu
 
     # if E_NET_USE_INTERNAL_ETHERNET
     #     choice E_NET_ETH_PHY_MODEL
