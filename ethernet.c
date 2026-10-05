@@ -9,6 +9,14 @@
 #include "esp_wifi.h"
 #include "esp_netif_sntp.h"
 #include "esp_eth.h"
+#include "esp_idf_version.h"
+#if ESP_IDF_VERSION_MAJOR >= 6
+// ESP-IDF v6.0 moved every Ethernet PHY and SPI-module driver out of esp_eth into the
+// esp-eth-drivers repo (managed component espressif/w5500). The headers come from there
+// now, and the config struct gained a `base` member shared with the W6100 (HMO-113).
+#include "esp_eth_mac_w5500.h"
+#include "esp_eth_phy_w5500.h"
+#endif
 #include "esp_mac.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -335,9 +343,18 @@ static void phy_init()
         .clock_speed_hz = 40 * 1000 * 1000,
         .spics_io_num = CONFIG_E_NET_W5500_SPI_CS_GPIO,
         .queue_size = 20};
-#ifdef CONFIG_ETH_SPI_ETHERNET_W5500
+// Before v6.0 the W5500 driver was part of esp_eth and this block was guarded by
+// CONFIG_ETH_SPI_ETHERNET_W5500. That symbol does not exist in v6.0, where the driver is a
+// managed component, so the guard would silently compile the whole link away and leave
+// eth_handle NULL for the esp_eth_ioctl() below. The meter is a wired, W5500-only product:
+// the driver is a hard dependency, not an option (HMO-113).
+#if ESP_IDF_VERSION_MAJOR >= 6
+#define MASI_W5500_CFG(cfg) ((cfg).base)
+#else
+#define MASI_W5500_CFG(cfg) (cfg)
+#endif
     eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(SPI3_HOST, &spi_devcfg);
-    w5500_config.int_gpio_num = CONFIG_E_NET_W5500_INT_GPIO;
+    MASI_W5500_CFG(w5500_config).int_gpio_num = CONFIG_E_NET_W5500_INT_GPIO;
     // Transmit frames out of one preallocated DMA buffer. The stock SPI driver passes the
     // lwIP payload straight through, so the SPI master has to allocate a DMA bounce buffer
     // from internal RAM on every frame; under page load that allocation fails against a
@@ -346,16 +363,16 @@ static void phy_init()
         .spi_host_id = SPI3_HOST,
         .spi_devcfg = &spi_devcfg,
     };
-    w5500_config.custom_spi_driver.config = &w5500_spi_dma_config;
-    w5500_config.custom_spi_driver.init = eth_spi_dma_init;
-    w5500_config.custom_spi_driver.deinit = eth_spi_dma_deinit;
-    w5500_config.custom_spi_driver.read = eth_spi_dma_read;
-    w5500_config.custom_spi_driver.write = eth_spi_dma_write;
+    MASI_W5500_CFG(w5500_config).custom_spi_driver.config = &w5500_spi_dma_config;
+    MASI_W5500_CFG(w5500_config).custom_spi_driver.init = eth_spi_dma_init;
+    MASI_W5500_CFG(w5500_config).custom_spi_driver.deinit = eth_spi_dma_deinit;
+    MASI_W5500_CFG(w5500_config).custom_spi_driver.read = eth_spi_dma_read;
+    MASI_W5500_CFG(w5500_config).custom_spi_driver.write = eth_spi_dma_write;
     esp_eth_mac_t *mac_spi = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
     esp_eth_phy_t *phy_spi = esp_eth_phy_new_w5500(&phy_config);
     esp_eth_config_t eth_config_spi = ETH_DEFAULT_CONFIG(mac_spi, phy_spi);
     ESP_ERROR_CHECK(esp_eth_driver_install(&eth_config_spi, &eth_handle));
-#endif
+#undef MASI_W5500_CFG
 
     uint8_t mac_addr[6];
     esp_read_mac(mac_addr, ESP_MAC_ETH);
