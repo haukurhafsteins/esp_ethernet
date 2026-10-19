@@ -76,6 +76,14 @@ extern "C"
     /// @return True if an IP address has been obtained, false otherwise
     bool ethernet_got_ip();
 
+    /// @brief Check if SNTP has set the clock since the IP address was obtained
+    /// @return True once a sync has completed, false again when the IP address is lost
+    bool ethernet_time_synced();
+
+    /// @brief Check if an NTP server is set in the network configuration
+    /// @return True when the "sntp" setting is not empty
+    bool ethernet_sntp_configured();
+
     /// @brief Get the hostname
     /// @return The hostname
     const char *ethernet_get_hostname();

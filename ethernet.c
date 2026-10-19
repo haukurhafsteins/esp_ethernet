@@ -42,11 +42,13 @@ static esp_event_handler_instance_t instance_any_id;
 static bool initialized = false;
 static bool got_ip = false;
 static bool got_eth_link = false;
+static bool time_synced = false;
 
 static void wifi_init_softap();
 
 void time_sync_notification_cb(struct timeval *tv)
 {
+    time_synced = true;
     ESP_LOGI(TAG, "Date is set: %s", tv ? ctime(&tv->tv_sec) : "NULL");
 }
 
@@ -67,6 +69,7 @@ static void on_got_ip(bool ip_set)
     }
     else
     {
+        time_synced = false;
         esp_netif_sntp_deinit();
     }
 }
@@ -237,6 +240,17 @@ bool ethernet_got_ip()
 {
     return got_ip;
 }
+
+bool ethernet_time_synced()
+{
+    return time_synced;
+}
+
+bool ethernet_sntp_configured()
+{
+    return ethernet_settings.sntp[0] != '\0';
+}
+
 bool ethernet_valid_ip(const char *ip)
 {
     struct in_addr in;
