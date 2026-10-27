@@ -11,4 +11,4 @@ endif()
 idf_component_register(SRCS "discovery.c" "ethernet.c" "eth_spi_dma.c"
                     INCLUDE_DIRS "include"
                     REQUIRES ${ESP_ETHERNET_REQUIRES}
-                    PRIV_REQUIRES "cJSON")
+                    PRIV_REQUIRES "json")

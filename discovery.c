@@ -2,8 +2,7 @@
 #include <stdbool.h>
 #include "esp_log.h"
 #include "discovery.h"
-#include "cJSON.h"
-#include "cJSON_Params.h"
+#include "masi_json.h"
 #include "ethernet.h"
 
 #define MAX_INST_NAME 32
@@ -46,18 +45,18 @@ mdns_result_t *discovery_find_mdns_service(const char *type, const char *proto)
 
 bool discovery_init(const char *json, bool *save)
 {
-    cJSON *doc = cJSON_Parse(json);
+    masi_json_doc_t *doc = masi_json_parse(json, "discovery settings");
     if (doc == NULL)
         return false;
 
     if (save != NULL)
         *save = true;
 
-    cJSON_GetString(doc, "instName", discovery_cfg.inst_name, discovery_cfg.inst_name, MAX_INST_NAME);
-    cJSON_GetString(doc, "boardName", discovery_cfg.board_name, discovery_cfg.board_name, MAX_INST_NAME);
-    cJSON_GetString(doc, "serviceType", discovery_cfg.service_type, discovery_cfg.service_type, MAX_SERVICE_TYPE);
-    cJSON_GetString(doc, "protoType", discovery_cfg.proto_type, discovery_cfg.proto_type, MAX_PROTO_TYPE);
-    cJSON_Delete(doc);
+    masi_json_get_string(doc, NULL, "instName", discovery_cfg.inst_name, discovery_cfg.inst_name, MAX_INST_NAME);
+    masi_json_get_string(doc, NULL, "boardName", discovery_cfg.board_name, discovery_cfg.board_name, MAX_INST_NAME);
+    masi_json_get_string(doc, NULL, "serviceType", discovery_cfg.service_type, discovery_cfg.service_type, MAX_SERVICE_TYPE);
+    masi_json_get_string(doc, NULL, "protoType", discovery_cfg.proto_type, discovery_cfg.proto_type, MAX_PROTO_TYPE);
+    masi_json_free(doc);
 
     return true;
 }

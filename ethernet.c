@@ -22,8 +22,7 @@
 #include "esp_log.h"
 #include "driver/gpio.h"
 #include "sdkconfig.h"
-#include "cJSON.h"
-#include "cJSON_Params.h"
+#include "masi_json.h"
 #include "ethernet.h"
 #include "eth_spi_dma.h"
 
@@ -464,37 +463,35 @@ bool ethernet_init(const char *json, bool *save)
     // Default hostname must be set to unique value. Will be overwritten by settings.
     snprintf(ethernet_settings.hostname, MAX_HOSTNAME, "%s", ethernet_get_default_hostname());
 
-    cJSON *doc = cJSON_Parse(json);
+    masi_json_doc_t *doc = masi_json_parse(json, "ethernet settings");
     if (doc == NULL)
         return false;
 
     if (save != NULL)
         *save = true;
 
-    cJSON_GetString(doc, "hostname", ethernet_settings.hostname, ethernet_settings.hostname, MAX_HOSTNAME);
-    cJSON_GetString(doc, "sntp", ethernet_settings.sntp, ethernet_settings.sntp, MAX_SNTP_NAME);
+    masi_json_get_string(doc, NULL, "hostname", ethernet_settings.hostname, ethernet_settings.hostname, MAX_HOSTNAME);
+    masi_json_get_string(doc, NULL, "sntp", ethernet_settings.sntp, ethernet_settings.sntp, MAX_SNTP_NAME);
     // network_type_t prevType = ethernet_settings.type;
-    ethernet_settings.type = cJSON_GetInt(doc, "type", ethernet_settings.type, network_type_ap, network_type_end - 1);
+    ethernet_settings.type = masi_json_get_int(doc, NULL, "type", ethernet_settings.type, network_type_ap, network_type_end - 1);
 
-    cJSON *ap = cJSON_GetObjectItemCaseSensitive(doc, "ap");
-    if (ap != NULL)
+    if (masi_json_has_object(doc, "ap"))
     {
-        ethernet_settings.ap.channel = cJSON_GetInt(ap, "channel", (int)ethernet_settings.ap.channel, 1, 13);
-        cJSON_GetString(ap, "password", ethernet_settings.ap.password, ethernet_settings.ap.password, MAX_PW);
-        ethernet_settings.ap.max_connections = cJSON_GetInt(ap, "max_connections", ethernet_settings.ap.max_connections, 1, 5);
+        ethernet_settings.ap.channel = masi_json_get_int(doc, "ap", "channel", (int)ethernet_settings.ap.channel, 1, 13);
+        masi_json_get_string(doc, "ap", "password", ethernet_settings.ap.password, ethernet_settings.ap.password, MAX_PW);
+        ethernet_settings.ap.max_connections = masi_json_get_int(doc, "ap", "max_connections", ethernet_settings.ap.max_connections, 1, 5);
     }
 
-    cJSON *phy = cJSON_GetObjectItemCaseSensitive(doc, "phy");
-    if (phy != NULL)
+    if (masi_json_has_object(doc, "phy"))
     {
-        cJSON_GetString(phy, "ip", ethernet_settings.phy.ip, ethernet_settings.phy.ip, MAX_IP);
-        cJSON_GetString(phy, "netmask", ethernet_settings.phy.netmask, ethernet_settings.phy.netmask, MAX_IP);
-        cJSON_GetString(phy, "gateway", ethernet_settings.phy.gateway, ethernet_settings.phy.gateway, MAX_IP);
-        cJSON_GetString(phy, "password", ethernet_settings.phy.password, ethernet_settings.phy.password, MAX_PW);
-        ethernet_settings.phy.dhcp = cJSON_GetBool(phy, "dhcp", ethernet_settings.phy.dhcp);
+        masi_json_get_string(doc, "phy", "ip", ethernet_settings.phy.ip, ethernet_settings.phy.ip, MAX_IP);
+        masi_json_get_string(doc, "phy", "netmask", ethernet_settings.phy.netmask, ethernet_settings.phy.netmask, MAX_IP);
+        masi_json_get_string(doc, "phy", "gateway", ethernet_settings.phy.gateway, ethernet_settings.phy.gateway, MAX_IP);
+        masi_json_get_string(doc, "phy", "password", ethernet_settings.phy.password, ethernet_settings.phy.password, MAX_PW);
+        ethernet_settings.phy.dhcp = masi_json_get_bool(doc, "phy", "dhcp", ethernet_settings.phy.dhcp);
     }
 
-    cJSON_Delete(doc);
+    masi_json_free(doc);
 
     if (!ethernet_valid_hostname(ethernet_settings.hostname))
     {
